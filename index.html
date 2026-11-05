@@ -1,0 +1,1561 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SuccessoReport — Store Maintenance &amp; Technician Dispatch</title>
+
+  <!-- Google Fonts: Inter & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap"
+    rel="stylesheet" />
+
+  <!-- Flat UI Stylesheet (Strictly Zero Gradients, Mobile-First Responsive) -->
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+
+<body>
+
+  <!-- Live Toast Notification Region -->
+  <div id="toast-stack" class="toast-stack" aria-live="polite" aria-atomic="true"></div>
+
+  <!-- =========================================================================
+       VIEW 1: AUTHENTICATION (LOGIN SCREEN)
+       ========================================================================= -->
+  <main id="auth-view" class="auth-wrapper">
+    <section class="auth-card" aria-labelledby="login-heading">
+      <div class="auth-brand">
+        <div class="brand-icon-box" aria-hidden="true">
+          <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round"
+              d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+          </svg>
+        </div>
+        <div>
+          <h1 id="login-heading" class="section-title" style="font-size:1.25rem;">SuccessoReport</h1>
+          <p class="text-xs text-muted">Store Operations, Maintenance &amp; Technician Dispatch Portal</p>
+        </div>
+      </div>
+
+      <form id="login-form" action="#login" method="POST" novalidate>
+        <div class="form-group">
+          <label for="login-username" class="form-label">Username <span class="req">*</span></label>
+          <input type="text" id="login-username" name="username" class="form-input mono" autocomplete="username"
+            autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="next" required
+            aria-describedby="login-user-hint" />
+          <span id="login-user-hint" class="form-hint">Default SuperAdmin: <strong class="mono">superadmin /
+              superadmin</strong></span>
+        </div>
+
+        <div class="form-group">
+          <label for="login-password" class="form-label">Password <span class="req">*</span></label>
+          <div class="input-with-action">
+            <input type="password" id="login-password" name="password" class="form-input mono"
+              autocomplete="current-password" enterkeyhint="done" required />
+            <button type="button" id="btn-toggle-login-pw" class="btn btn-outline btn-sm" aria-pressed="false"
+              aria-label="Show password">
+              Show
+            </button>
+          </div>
+          <span class="form-hint">Every Store &amp; Maintenance Technician account uses <strong class="mono">username /
+              username</strong> by default.</span>
+        </div>
+
+        <div id="login-error-box" class="badge badge-danger hidden" role="alert"
+          style="width:100%; padding:0.65rem; margin-bottom:1rem; justify-content:center; white-space:normal; text-align:center;">
+        </div>
+
+        <button type="submit" id="btn-login-submit" class="btn btn-primary btn-block btn-lg">
+          Sign In to Portal
+        </button>
+      </form>
+
+      <!-- Visual Account Selector Cards for Instant Testing -->
+      <div class="quick-demo-box">
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:0.5rem; margin-bottom:0.25rem;">
+          <div class="text-xs" style="font-weight:700; color:var(--text-secondary);">
+            1-Click Quick Login Accounts:
+          </div>
+          <span class="badge badge-neutral" style="font-size:0.65rem;">Tap Any to Sign In</span>
+        </div>
+        <div class="account-selector-grid">
+          <!-- Dynamically populated by renderLoginAccountSelector() -->
+          <div class="account-card-item js-quick-login" data-user="superadmin" data-pass="superadmin" title="Sign in as System SuperAdmin">
+            <div style="display:flex; align-items:center; gap:0.65rem; min-width:0; flex:1;">
+              <div class="user-avatar user-avatar-sm avatar-superadmin">SA</div>
+              <div style="min-width:0; flex:1;">
+                <div style="font-weight:700; font-size:0.83rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">System SuperAdmin</div>
+                <div class="mono text-xs text-muted">superadmin / superadmin</div>
+              </div>
+            </div>
+            <div style="flex-shrink:0;">
+              <span class="badge badge-purple" style="font-size:0.65rem;">SUPERADMIN</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="auth-footer-meta text-muted">
+        <span id="db-conn-indicator" class="mono">DB: Connected</span>
+        <span>SMS: SabayKonekta &bull; Photos: Telegram</span>
+      </div>
+    </section>
+  </main>
+
+
+  <!-- =========================================================================
+       VIEW 2: AUTHENTICATED APPLICATION SHELL
+       ========================================================================= -->
+  <div id="app-view" class="app-shell hidden">
+
+    <!-- Instant Role Switcher Strip so you can test the entire flow smoothly -->
+    <div class="role-switcher-strip" aria-label="Quick Role Switcher for Testing Flow">
+      <div class="role-switcher-strip-label">
+        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"
+          aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+        </svg>
+        <strong>Role Persona Switcher:</strong>
+      </div>
+      <div id="quick-switch-bar" class="role-switcher-btns"></div>
+    </div>
+
+    <!-- Sticky Flat Header -->
+    <header class="top-header">
+      <div class="header-left">
+        <div class="brand-icon-box" style="width:36px; height:36px; border-radius:var(--radius-md);" aria-hidden="true">
+          <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round"
+              d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+          </svg>
+        </div>
+        <div class="header-title-wrap">
+          <div class="header-brand-row">
+            <span class="header-brand-name">SuccessoReport</span>
+            <span id="header-role-badge" class="badge badge-primary">SUPERADMIN</span>
+          </div>
+          <div id="header-user-subtitle" class="header-user-sub mono">superadmin</div>
+        </div>
+      </div>
+
+      <div class="header-right">
+        <button type="button" id="btn-open-notifications" class="notif-btn" aria-label="Open notifications"
+          title="System Notifications">
+          <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"
+            aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round"
+              d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+          </svg>
+          <span id="notif-unread-badge" class="notif-count hidden">0</span>
+        </button>
+
+        <button type="button" id="btn-open-pw-modal" class="btn btn-outline btn-sm" title="Account Password">
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"
+            aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round"
+              d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+          </svg>
+          <span>Password</span>
+        </button>
+
+        <button type="button" id="btn-logout" class="btn btn-outline btn-sm"
+          style="color:var(--danger); border-color:var(--danger-border);">
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"
+            aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round"
+              d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+          </svg>
+          <span>Logout</span>
+        </button>
+      </div>
+    </header>
+
+    <div class="app-body">
+      <!-- Desktop Left Sidebar -->
+      <aside class="side-nav" aria-label="Main Navigation">
+        <ul id="desktop-nav-list" class="nav-list">
+          <!-- Populated dynamically per Role -->
+        </ul>
+      </aside>
+
+      <!-- Main Responsive Content Area -->
+      <main class="main-content">
+
+        <!-- Visual 3-Step Flow Operations Stepper Pipeline -->
+        <details class="workflow-guide-accordion" open>
+          <summary class="workflow-guide-summary">
+            <div class="workflow-summary-left">
+              <span class="pulse-indicator"></span>
+              <strong>Standard Maintenance &amp; Approval Flow</strong>
+              <span class="badge badge-neutral" style="font-size:0.65rem;">3 STEPS</span>
+            </div>
+            <span class="summary-toggle-pill">Toggle Overview &darr;</span>
+          </summary>
+          <div class="workflow-steps-pipeline">
+            <div id="flow-guide-store" class="workflow-step-pill">
+              <span class="step-num">1</span>
+              <div class="step-info">
+                <span class="step-title">Store Reports Issue</span>
+                <span class="step-desc">Photo + Caption + Priority &rarr; SMS to Technician</span>
+              </div>
+            </div>
+            <div class="step-connector">&rarr;</div>
+            <div id="flow-guide-fixer" class="workflow-step-pill">
+              <span class="step-num">2</span>
+              <div class="step-info">
+                <span class="step-title">Technician Uploads Proof</span>
+                <span class="step-desc">Photo of Repair + Time &amp; Date logged</span>
+              </div>
+            </div>
+            <div class="step-connector">&rarr;</div>
+            <div id="flow-guide-approve" class="workflow-step-pill">
+              <span class="step-num">3</span>
+              <div class="step-info">
+                <span class="step-title">Store Legitimacy Approval</span>
+                <span class="step-desc">Approval verified &rarr; SuperAdmin notified</span>
+              </div>
+            </div>
+          </div>
+        </details>
+
+        <!-- Role Action Callout Banner (Dynamic) -->
+        <div id="role-action-banner" class="action-needed-banner hidden"></div>
+
+        <!-- ===================================================================
+             TAB PANEL 0: ROLE DASHBOARD (SuperAdmin, Store Account, Technician)
+             =================================================================== -->
+        <section id="panel-dashboard" class="tab-panel" aria-labelledby="heading-dashboard">
+          <div id="role-dashboard-container">
+            <!-- Dynamically populated based on role: SuperAdmin, Store, or Technician -->
+          </div>
+        </section>
+
+        <!-- ===================================================================
+             TAB PANEL A: REPORTS & WORKFLOW BOARD
+             =================================================================== -->
+        <section id="panel-reports" class="tab-panel hidden" aria-labelledby="heading-reports">
+          <div class="page-header-bar">
+            <div>
+              <h2 id="heading-reports" class="page-title">Store Maintenance Reports</h2>
+              <p id="reports-subtitle" class="text-sm text-muted">Live status across Store, Technician, and SuperAdmin
+              </p>
+            </div>
+            <div>
+              <button type="button" id="btn-go-new-report" class="btn btn-primary btn-block hidden">
+                <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"
+                  aria-hidden="true">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+                </svg>
+                <span>Report Broken Thing (Take Photo)</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- KPI Summary Row -->
+          <div class="kpi-grid">
+            <div class="kpi-card">
+              <div class="kpi-label">Total Reports</div>
+              <div id="kpi-total" class="kpi-value">0</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-label" style="color:var(--danger-text);">1. Needs Repair (Technician)</div>
+              <div id="kpi-pending" class="kpi-value" style="color:var(--danger);">0</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-label" style="color:var(--warning-text);">2. For Store Approval</div>
+              <div id="kpi-awaiting" class="kpi-value" style="color:var(--warning);">0</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-label" style="color:var(--success-text);">3. Store Approved (Legit)</div>
+              <div id="kpi-approved" class="kpi-value" style="color:var(--success);">0</div>
+            </div>
+          </div>
+
+          <!-- Filter & Search Bar -->
+          <div class="filter-bar">
+            <div class="filter-pills" role="group" aria-label="Filter reports by status">
+              <button type="button" class="pill-btn active js-status-filter" data-status="all">All Reports</button>
+              <button type="button" class="pill-btn js-status-filter" data-status="pending">1. Needs Fix</button>
+              <button type="button" class="pill-btn js-status-filter" data-status="awaiting_approval">2. Fixed (Wait
+                Store Approval)</button>
+              <button type="button" class="pill-btn js-status-filter" data-status="approved">3. Approved
+                (Legit)</button>
+              <button type="button" class="pill-btn js-status-filter" data-status="rejected">Rejected (Re-Fix)</button>
+            </div>
+
+            <div class="filter-controls">
+              <label for="filter-priority" class="visually-hidden">Filter by Priority</label>
+              <select id="filter-priority" name="priority_filter" class="form-select"
+                style="min-height:40px; padding:0.35rem 0.75rem; font-size:0.875rem;">
+                <option value="all">All Priorities</option>
+                <option value="urgent">Urgent Only</option>
+                <option value="high">High Only</option>
+                <option value="medium">Medium Only</option>
+                <option value="low">Low Only</option>
+              </select>
+
+              <label for="search-reports" class="visually-hidden">Search reports</label>
+              <input type="search" id="search-reports" name="search_reports" class="form-input"
+                placeholder="Search store, caption, ID..." autocorrect="off" autocapitalize="off" spellcheck="false"
+                style="min-height:40px; padding:0.35rem 0.75rem; font-size:0.875rem;" />
+            </div>
+          </div>
+
+          <!-- Reports Table Container -->
+          <div class="card" style="margin-bottom:0; overflow:hidden;">
+            <div class="card-header"
+              style="padding:0.75rem 1rem; border-bottom:1px solid var(--border-color); display:flex; justify-content:space-between; align-items:center;">
+              <div>
+                <h3 class="section-title" style="margin-bottom:0.15rem;">Store Maintenance Reports</h3>
+                <p class="text-xs text-muted" style="margin-bottom:0;">Click any row to view photos, audit timeline, and
+                  actions in modal</p>
+              </div>
+              <span id="reports-count-badge" class="badge badge-neutral">0 Reports</span>
+            </div>
+
+            <div class="flat-table-responsive" style="border:none; border-radius:0;">
+              <table class="flat-table" id="reports-table">
+                <thead>
+                  <tr>
+                    <th style="min-width:110px;">Report ID</th>
+                    <th style="min-width:100px;">Priority</th>
+                    <th style="min-width:180px;">Store Branch</th>
+                    <th style="min-width:240px;">Issue Description</th>
+                    <th style="min-width:160px;">Status</th>
+                    <th style="min-width:140px;">Technician</th>
+                    <th style="min-width:130px;">Reported At</th>
+                    <th style="text-align:right; min-width:120px;">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="reports-table-tbody">
+                  <!-- Rendered dynamically -->
+                </tbody>
+              </table>
+            </div>
+            <div id="reports-empty-state" class="hidden" style="padding:2.5rem 1rem; text-align:center;"></div>
+          </div>
+        </section>
+
+
+        <!-- ===================================================================
+             TAB PANEL: MANAGE STORES (SuperAdmin Only)
+             =================================================================== -->
+        <section id="panel-stores" class="tab-panel hidden" aria-labelledby="heading-stores">
+          <div class="page-header-bar">
+            <div>
+              <h2 id="heading-stores" class="page-title">Manage Store Branches</h2>
+              <p class="text-sm text-muted">Register and manage physical store branches, branch locations, and SMS alert contact numbers.</p>
+            </div>
+            <div class="btn-group-responsive">
+              <button type="button" id="btn-open-create-store" class="btn btn-primary btn-sm">
+                <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"
+                  aria-hidden="true">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+                </svg>
+                <span>Add Store Branch</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Store Stats KPI Grid -->
+          <div class="kpi-grid">
+            <div class="kpi-card">
+              <div class="kpi-label">Total Store Branches</div>
+              <div id="kpi-stores-total" class="kpi-value">0</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-label" style="color:var(--danger-text);">Stores with Open Issues</div>
+              <div id="kpi-stores-with-issues" class="kpi-value" style="color:var(--danger);">0</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-label" style="color:var(--success-text);">100% Operational Stores</div>
+              <div id="kpi-stores-operational" class="kpi-value" style="color:var(--success);">0</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-label" style="color:var(--primary-text);">Total Store Reports</div>
+              <div id="kpi-stores-reports-total" class="kpi-value" style="color:var(--primary);">0</div>
+            </div>
+          </div>
+
+          <!-- Store Filter & Search Bar -->
+          <div class="filter-bar">
+            <div class="filter-pills" role="group" aria-label="Filter stores">
+              <button type="button" class="pill-btn active js-store-status-filter" data-status="all">All Branches (<span
+                  id="stores-pill-all">0</span>)</button>
+              <button type="button" class="pill-btn js-store-status-filter" data-status="has_issues">Has Open Issues
+                (<span id="stores-pill-issues">0</span>)</button>
+              <button type="button" class="pill-btn js-store-status-filter" data-status="clean">All Clean &bull; No
+                Issues (<span id="stores-pill-clean">0</span>)</button>
+            </div>
+
+            <div class="filter-controls">
+              <label for="search-stores-input" class="visually-hidden">Search store branches</label>
+              <input
+                type="search"
+                id="search-stores-input"
+                name="search_stores"
+                class="form-input"
+                placeholder="Search branch name, code, address, phone..."
+                autocorrect="off"
+                autocapitalize="off"
+                spellcheck="false"
+              />
+            </div>
+          </div>
+
+          <!-- Store Branches Table -->
+          <div class="card" style="margin-bottom:0; overflow:hidden;">
+            <div class="card-header"
+              style="padding:0.75rem 1rem; border-bottom:1px solid var(--border-color); display:flex; justify-content:space-between; align-items:center;">
+              <div>
+                <h3 class="section-title" style="margin-bottom:0.15rem;">Store Branches Directory</h3>
+                <p class="text-xs text-muted" style="margin-bottom:0;">Inspect branch status, addresses, linked user accounts, and repair history</p>
+              </div>
+              <span id="stores-count-badge" class="badge badge-neutral">0 Stores</span>
+            </div>
+
+            <div class="flat-table-responsive" style="border:none; border-radius:0;">
+              <table class="flat-table" id="stores-table">
+                <thead>
+                  <tr>
+                    <th style="min-width:180px;">Store Branch</th>
+                    <th style="min-width:200px;">Address / Location</th>
+                    <th style="min-width:140px;">SMS Alerts Phone</th>
+                    <th style="min-width:140px;">Operational Status</th>
+                    <th style="min-width:150px;">Assigned Accounts</th>
+                    <th style="min-width:110px;">Reports</th>
+                    <th style="text-align:right; min-width:120px;">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="stores-table-tbody">
+                  <!-- Dynamically populated -->
+                </tbody>
+              </table>
+            </div>
+            <div id="stores-empty-state" class="hidden" style="padding:2.5rem 1rem; text-align:center;"></div>
+          </div>
+        </section>
+
+
+        <!-- Placeholder for panel-create-report if needed -->
+        <section id="panel-create-report" class="tab-panel hidden" style="display:none;"></section>
+
+
+        <!-- ===================================================================
+             TAB PANEL C: MANAGE USERS (SuperAdmin Only)
+             =================================================================== -->
+        <section id="panel-users" class="tab-panel hidden" aria-labelledby="heading-users">
+          <div class="page-header-bar">
+            <div>
+              <h2 id="heading-users" class="page-title">Manage Store &amp; Maintenance Accounts</h2>
+              <p class="text-sm text-muted">Every account created per store or technician defaults to <strong
+                  class="mono">username / username</strong> credentials.</p>
+            </div>
+            <div class="btn-group-responsive">
+              <button type="button" id="btn-open-create-user" class="btn btn-primary btn-sm">
+                <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"
+                  aria-hidden="true">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+                </svg>
+                <span>Create Account</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- User Stats KPI Grid -->
+          <div class="kpi-grid">
+            <div class="kpi-card">
+              <div class="kpi-label">Total Users</div>
+              <div id="kpi-users-total" class="kpi-value">0</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-label" style="color:var(--primary-text);">Store Accounts</div>
+              <div id="kpi-users-stores" class="kpi-value" style="color:var(--primary);">0</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-label" style="color:var(--warning-text);">Technician Accounts</div>
+              <div id="kpi-users-fixers" class="kpi-value" style="color:var(--warning);">0</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-label" style="color:var(--purple-text);">SuperAdmin</div>
+              <div id="kpi-users-admins" class="kpi-value" style="color:var(--purple);">0</div>
+            </div>
+          </div>
+
+          <!-- User Directory Filter & Search Bar -->
+          <div class="filter-bar">
+            <div class="filter-pills" role="group" aria-label="Filter users by role">
+              <button type="button" class="pill-btn active js-user-role-filter" data-role="all">All Accounts (<span
+                  id="pill-cnt-all">0</span>)</button>
+              <button type="button" class="pill-btn js-user-role-filter" data-role="store">Store Accounts (<span
+                  id="pill-cnt-store">0</span>)</button>
+              <button type="button" class="pill-btn js-user-role-filter" data-role="fixer">Technicians (<span
+                  id="pill-cnt-fixer">0</span>)</button>
+              <button type="button" class="pill-btn js-user-role-filter" data-role="superadmin">SuperAdmin (<span
+                  id="pill-cnt-admin">0</span>)</button>
+            </div>
+
+            <div class="filter-controls">
+              <label for="search-users-input" class="visually-hidden">Search users</label>
+              <input type="search" id="search-users-input" name="search_users" class="form-input"
+                placeholder="Search username, branch, phone..." autocorrect="off" autocapitalize="off"
+                spellcheck="false" style="min-height:40px; padding:0.35rem 0.75rem; font-size:0.875rem;" />
+            </div>
+          </div>
+
+          <!-- User Accounts Table -->
+          <div class="card" style="margin-bottom:0; overflow:hidden;">
+            <div class="card-header"
+              style="padding:0.75rem 1rem; border-bottom:1px solid var(--border-color); display:flex; justify-content:space-between; align-items:center;">
+              <div>
+                <h3 class="section-title" style="margin-bottom:0.15rem;">User Accounts Directory</h3>
+                <p class="text-xs text-muted" style="margin-bottom:0;">1-click account switching, reveal passwords, edit
+                  contact info, or reset credentials</p>
+              </div>
+              <div style="display:flex; align-items:center; gap:0.5rem;">
+                <span id="users-count-badge" class="badge badge-neutral">0 Users</span>
+              </div>
+            </div>
+
+            <div class="flat-table-responsive" style="border:none; border-radius:0;">
+              <table class="flat-table" id="users-table">
+                <thead>
+                  <tr>
+                    <th style="min-width:110px;">Role</th>
+                    <th style="min-width:180px;">Full Name / Identity</th>
+                    <th style="min-width:160px;">Credentials</th>
+                    <th style="min-width:140px;">SMS Phone</th>
+                    <th style="text-align:right; min-width:180px;">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="users-table-tbody">
+                  <!-- Dynamically populated -->
+                </tbody>
+              </table>
+            </div>
+            <div id="users-empty-state" class="hidden" style="padding:2.5rem 1rem; text-align:center;"></div>
+          </div>
+        </section>
+
+
+        <!-- ===================================================================
+             TAB PANEL D: INTEGRATIONS & SETTINGS (SuperAdmin Only)
+             =================================================================== -->
+        <section id="panel-settings" class="tab-panel hidden" aria-labelledby="heading-settings">
+          <div class="page-header-bar">
+            <div>
+              <h2 id="heading-settings" class="page-title">SMS (SabayKonekta) &amp; Telegram Image Settings</h2>
+              <p class="text-sm text-muted">Configure SabayKonekta SMS Gateway and Telegram Bot API for automatic image
+                hosting.</p>
+            </div>
+          </div>
+
+          <div class="reports-grid">
+            <!-- 1. SabayKonekta SMS Configuration -->
+            <div class="card" style="margin-bottom:0;">
+              <div class="card-header">
+                <div>
+                  <h3 class="section-title">SabayKonekta SMS API Gateway</h3>
+                  <p class="text-xs text-muted">Portal: <a href="https://sabaykonekta.netlify.app/" target="_blank"
+                      rel="noopener noreferrer" class="mono"
+                      style="color:var(--primary);">https://sabaykonekta.netlify.app/</a></p>
+                </div>
+                <span class="badge badge-primary">SMS Engine</span>
+              </div>
+
+              <form id="settings-sms-form" action="#save-sms" method="POST" novalidate>
+                <div class="form-group">
+                  <label for="cfg-sms-endpoint" class="form-label">SabayKonekta Endpoint URL</label>
+                  <input type="url" id="cfg-sms-endpoint" name="sms_endpoint" class="form-input mono"
+                    value="https://sabaykonekta.netlify.app/api/v1/send-sms" autocorrect="off" autocapitalize="off"
+                    spellcheck="false" required />
+                </div>
+
+                <div class="form-group">
+                  <label for="cfg-sms-apikey" class="form-label">Your SabayKonekta API Key (<code
+                      class="mono">x-api-key</code>)</label>
+                  <input type="text" id="cfg-sms-apikey" name="sms_api_key" class="form-input mono"
+                    placeholder="sms_live_..." autocorrect="off" autocapitalize="off" spellcheck="false" />
+                </div>
+
+                <div class="form-group">
+                  <label for="cfg-sms-gateway" class="form-label">Android Gateway ID (<code
+                      class="mono">gatewayId</code>)</label>
+                  <input type="text" id="cfg-sms-gateway" name="sms_gateway_id" class="form-input mono"
+                    placeholder="default_gateway or gw_phone_..." autocorrect="off" autocapitalize="off"
+                    spellcheck="false" />
+                </div>
+
+                <div class="form-group">
+                  <label for="cfg-sms-firestore-bridge"
+                    style="display:flex; align-items:flex-start; gap:0.5rem; font-size:0.875rem; font-weight:600; cursor:pointer;">
+                    <input type="checkbox" id="cfg-sms-firestore-bridge" name="firestore_bridge" checked
+                      style="width:20px; height:20px; margin-top:2px; flex-shrink:0; accent-color:var(--primary);" />
+                    <span>Also enqueue directly to SabayKonekta Firestore <code class="mono">messages</code>
+                      collection</span>
+                  </label>
+                </div>
+
+                <div class="btn-group-responsive">
+                  <button type="submit" class="btn btn-primary">Save SMS Settings</button>
+                  <button type="button" id="btn-test-sms" class="btn btn-outline">Send Test SMS</button>
+                </div>
+              </form>
+            </div>
+
+            <!-- 2. Telegram Image Host Configuration -->
+            <div class="card" style="margin-bottom:0;">
+              <div class="card-header">
+                <div>
+                  <h3 class="section-title">Telegram Bot Image Handler</h3>
+                  <p class="text-xs text-muted">Handles all Store Broken Pictures &amp; Technician Repair Proofs via
+                    Telegram API</p>
+                </div>
+                <span class="badge badge-telegram">Telegram API</span>
+              </div>
+
+              <form id="settings-tg-form" action="#save-telegram" method="POST" novalidate>
+                <div class="form-group">
+                  <label for="cfg-tg-token" class="form-label">Telegram Bot Token (<code
+                      class="mono">@BotFather</code>)</label>
+                  <input type="text" id="cfg-tg-token" name="tg_bot_token" class="form-input mono"
+                    placeholder="1234567890:AAH_your_telegram_bot_token" autocorrect="off" autocapitalize="off"
+                    spellcheck="false" />
+                </div>
+
+                <div class="form-group">
+                  <label for="cfg-tg-chatid" class="form-label">Telegram Channel / Group / Chat ID</label>
+                  <input type="text" id="cfg-tg-chatid" name="tg_chat_id" class="form-input mono"
+                    placeholder="e.g. -1001234567890 or 987654321" autocorrect="off" autocapitalize="off"
+                    spellcheck="false" />
+                </div>
+
+                <div class="btn-group-responsive">
+                  <button type="submit" class="btn btn-primary">Save Telegram Settings</button>
+                  <button type="button" id="btn-test-tg" class="btn btn-outline">Test Telegram Bot</button>
+                </div>
+              </form>
+            </div>
+          </div>
+
+          <!-- SMS Dispatch Outbox Log -->
+          <div class="card" style="margin-top:1rem;">
+            <div class="card-header">
+              <div>
+                <h3 class="section-title">SabayKonekta SMS Outbox &amp; Dispatch Log</h3>
+                <p class="text-xs text-muted">Tracks all SMS notifications sent during the Store &rarr; Maintenance
+                  Technician &rarr; Store Approval &rarr; SuperAdmin flow</p>
+              </div>
+              <span id="sms-log-count" class="badge badge-neutral">0 Dispatches</span>
+            </div>
+            <div class="table-responsive">
+              <table class="flat-table">
+                <thead>
+                  <tr>
+                    <th>Time</th>
+                    <th>Recipient</th>
+                    <th>Message</th>
+                    <th>Gateway / Status</th>
+                  </tr>
+                </thead>
+                <tbody id="sms-logs-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+      </main>
+    </div>
+
+    <!-- Mobile Bottom Navigation Bar (< 768px) -->
+    <nav id="mobile-bottom-nav" class="bottom-nav" aria-label="Mobile Navigation">
+      <!-- Populated dynamically per Role -->
+    </nav>
+  </div>
+
+
+  <!-- =========================================================================
+       MODAL: REPORT BROKEN THING (Store Account)
+       ========================================================================= -->
+  <dialog id="dialog-create-report" class="flat-dialog" aria-labelledby="create-report-modal-title">
+    <div class="dialog-inner">
+      <div class="dialog-header">
+        <div>
+          <h3 id="create-report-modal-title" class="section-title">Report Broken Thing</h3>
+          <p class="text-xs text-muted">Take or upload a picture, add caption, and select priority. Notifies Technician
+            &amp; SuperAdmin.</p>
+        </div>
+        <button type="button" class="btn btn-outline btn-sm js-close-dialog"
+          data-dialog="dialog-create-report">Close</button>
+      </div>
+
+      <form id="create-report-form" action="#create-report" method="POST" novalidate>
+        <!-- 1. Take a Picture / Upload Photo (Device Camera or Gallery) -->
+        <div class="form-group">
+          <label class="form-label">1. Take a Picture of the Broken Thing <span class="req">*</span></label>
+          <div class="upload-zone" style="text-align:center; padding:1.25rem 1rem;">
+            <div style="display:flex; gap:0.5rem; justify-content:center; flex-wrap:wrap; margin-bottom:0.75rem;">
+              <button type="button" class="btn btn-primary js-open-camera-btn" data-target="report">
+                <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round"
+                    d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                <span>Take Photo with Camera</span>
+              </button>
+              <label for="report-photo-input" class="btn btn-outline" style="cursor:pointer; margin-bottom:0;">
+                <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round"
+                    d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                </svg>
+                <span>Upload from Gallery / Files</span>
+              </label>
+            </div>
+
+            <input type="file" id="report-photo-input" name="broken_photo" accept="image/*" class="visually-hidden" />
+            <input type="file" id="report-photo-native-camera" name="broken_photo_native" accept="image/*"
+              capture="environment" class="visually-hidden" />
+
+            <span class="form-hint" style="display:block; margin-top:0.25rem;">Use live device camera or choose file.
+              Photo will be automatically uploaded to Telegram.</span>
+
+            <!-- Photo Preview Area -->
+            <div id="report-photo-preview-wrap" class="hidden" style="margin-top:0.875rem;">
+              <div
+                style="position:relative; display:inline-block; border:2px solid var(--border-color); border-radius:var(--radius-md); overflow:hidden; background:#000;">
+                <img id="report-photo-preview" src="" alt="Preview of broken item"
+                  style="max-height:220px; max-width:100%; object-fit:contain; display:block;" />
+              </div>
+              <div style="margin-top:0.5rem; display:flex; justify-content:center; gap:0.5rem; align-items:center;">
+                <span class="badge badge-success">&#10003; Photo Ready</span>
+                <button type="button" class="btn btn-outline btn-sm js-clear-photo-btn" data-target="report"
+                  style="color:var(--danger); border-color:var(--danger-border);">Remove / Retake</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2. Add Caption (What is Broken) -->
+        <div class="form-group">
+          <label for="report-caption" class="form-label">2. Caption (Describe the Broken Thing / Issue) <span
+              class="req">*</span></label>
+          <textarea id="report-caption" name="caption" class="form-textarea"
+            placeholder="e.g. Broken Display Chiller Door — rubber seal is torn and cold air is leaking out..."
+            required></textarea>
+        </div>
+
+        <!-- 3. Select Priority (Low, Medium, High, Urgent) -->
+        <div class="form-group">
+          <fieldset class="priority-fieldset">
+            <legend class="priority-legend">3. What is the Priority? <span class="req"
+                style="color:var(--danger);">*</span></legend>
+            <div class="priority-grid">
+              <div class="priority-option">
+                <input type="radio" id="prio-low" name="priority" value="low" class="visually-hidden" />
+                <label for="prio-low" class="priority-label" data-prio="low">[LOW] Low</label>
+              </div>
+              <div class="priority-option">
+                <input type="radio" id="prio-medium" name="priority" value="medium" class="visually-hidden" />
+                <label for="prio-medium" class="priority-label" data-prio="medium">[MED] Medium</label>
+              </div>
+              <div class="priority-option">
+                <input type="radio" id="prio-high" name="priority" value="high" class="visually-hidden" checked />
+                <label for="prio-high" class="priority-label" data-prio="high">[HIGH] High</label>
+              </div>
+              <div class="priority-option">
+                <input type="radio" id="prio-urgent" name="priority" value="urgent" class="visually-hidden" />
+                <label for="prio-urgent" class="priority-label" data-prio="urgent">[URG] Urgent</label>
+              </div>
+            </div>
+          </fieldset>
+        </div>
+
+        <div class="dialog-footer">
+          <button type="button" class="btn btn-outline js-close-dialog"
+            data-dialog="dialog-create-report">Cancel</button>
+          <button type="submit" id="btn-submit-report" class="btn btn-primary">
+            Submit Report &rarr; Notify Technician &amp; SuperAdmin
+          </button>
+        </div>
+      </form>
+    </div>
+  </dialog>
+
+
+  <!-- =========================================================================
+       MODAL: ADD NEW STORE BRANCH (SuperAdmin)
+       ========================================================================= -->
+  <dialog id="dialog-create-store" class="flat-dialog" aria-labelledby="create-store-modal-title">
+    <div class="dialog-inner">
+      <div class="dialog-header">
+        <div>
+          <h3 id="create-store-modal-title" class="section-title">Add New Store Branch</h3>
+          <p class="text-xs text-muted">Register a physical store branch into Store Management</p>
+        </div>
+        <button type="button" class="btn btn-outline btn-sm js-close-dialog"
+          data-dialog="dialog-create-store">Close</button>
+      </div>
+
+      <form id="create-store-form" action="#create-store" method="POST" novalidate>
+        <div class="form-group">
+          <label for="new-store-name" class="form-label">Store Branch Name <span class="req">*</span></label>
+          <input
+            type="text"
+            id="new-store-name"
+            name="name"
+            class="form-input"
+            placeholder="e.g. Successo Store - BGC High Street Branch"
+            required
+          />
+        </div>
+
+        <div class="form-row-2col">
+          <div class="form-group">
+            <label for="new-store-code" class="form-label">Branch Code</label>
+            <input
+              type="text"
+              id="new-store-code"
+              name="code"
+              class="form-input mono"
+              placeholder="e.g. BGC"
+              maxlength="10"
+              style="text-transform:uppercase;"
+            />
+          </div>
+          <div class="form-group">
+            <label for="new-store-contact" class="form-label">Branch Contact / Manager</label>
+            <input
+              type="text"
+              id="new-store-contact"
+              name="contact_person"
+              class="form-input"
+              placeholder="e.g. Juan Perez (Shift Lead)"
+            />
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="new-store-address" class="form-label">Store Address / Location <span class="req">*</span></label>
+          <input
+            type="text"
+            id="new-store-address"
+            name="address"
+            class="form-input"
+            placeholder="e.g. Level 1, Bonifacio High Street, BGC, Taguig City"
+            required
+          />
+        </div>
+
+        <div class="form-group">
+          <label for="new-store-phone" class="form-label">Store SMS Mobile Phone (For SabayKonekta Alerts) <span
+              class="req">*</span></label>
+          <input type="tel" id="new-store-phone" name="phone" class="form-input mono" placeholder="+639XXXXXXXXX"
+            autocomplete="tel" required />
+          <span class="form-hint">Used for automatic SMS dispatch when issues are reported or updated.</span>
+        </div>
+
+        <div class="dialog-footer">
+          <button type="button" class="btn btn-outline js-close-dialog"
+            data-dialog="dialog-create-store">Cancel</button>
+          <button type="submit" class="btn btn-primary">
+            Create Store Branch
+          </button>
+        </div>
+      </form>
+    </div>
+  </dialog>
+
+  <!-- =========================================================================
+       MODAL: EDIT STORE BRANCH (SuperAdmin)
+       ========================================================================= -->
+  <dialog id="dialog-edit-store" class="flat-dialog" aria-labelledby="edit-store-modal-title">
+    <div class="dialog-inner">
+      <div class="dialog-header">
+        <div>
+          <h3 id="edit-store-modal-title" class="section-title">Edit Store Branch</h3>
+          <p id="edit-store-modal-subtitle" class="text-xs text-muted mono">Update branch information</p>
+        </div>
+        <button type="button" class="btn btn-outline btn-sm js-close-dialog" data-dialog="dialog-edit-store">Close</button>
+      </div>
+
+      <form id="edit-store-form" action="#edit-store" method="POST" novalidate>
+        <input type="hidden" id="edit-store-id" name="store_id" />
+
+        <div class="form-group">
+          <label for="edit-store-name" class="form-label">Store Branch Name <span class="req">*</span></label>
+          <input
+            type="text"
+            id="edit-store-name"
+            name="name"
+            class="form-input"
+            required
+          />
+        </div>
+
+        <div class="form-row-2col">
+          <div class="form-group">
+            <label for="edit-store-code" class="form-label">Branch Code</label>
+            <input
+              type="text"
+              id="edit-store-code"
+              name="code"
+              class="form-input mono"
+              style="text-transform:uppercase;"
+            />
+          </div>
+          <div class="form-group">
+            <label for="edit-store-contact" class="form-label">Branch Contact / Manager</label>
+            <input
+              type="text"
+              id="edit-store-contact"
+              name="contact_person"
+              class="form-input"
+            />
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="edit-store-address" class="form-label">Store Address / Location <span class="req">*</span></label>
+          <input
+            type="text"
+            id="edit-store-address"
+            name="address"
+            class="form-input"
+            required
+          />
+        </div>
+
+        <div class="form-row-2col">
+          <div class="form-group">
+            <label for="edit-store-phone" class="form-label">Store SMS Alerts Phone <span class="req">*</span></label>
+            <input
+              type="tel"
+              id="edit-store-phone"
+              name="phone"
+              class="form-input mono"
+              placeholder="+639XXXXXXXXX"
+              required
+            />
+          </div>
+          <div class="form-group">
+            <label for="edit-store-status" class="form-label">Branch Status</label>
+            <select id="edit-store-status" name="status" class="form-select">
+              <option value="active">Active &bull; Operational</option>
+              <option value="inactive">Temporarily Closed</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="dialog-footer">
+          <button type="button" class="btn btn-outline js-close-dialog" data-dialog="dialog-edit-store">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save Branch Changes</button>
+        </div>
+      </form>
+    </div>
+  </dialog>
+
+
+  <!-- =========================================================================
+       MODAL: CREATE NEW ACCOUNT (SuperAdmin)
+       ========================================================================= -->
+  <dialog id="dialog-create-user" class="flat-dialog" aria-labelledby="create-user-modal-title">
+    <div class="dialog-inner">
+      <div class="dialog-header">
+        <div>
+          <h3 id="create-user-modal-title" class="section-title">Create New Account</h3>
+          <p class="text-xs text-muted">Username and password match by default (<code
+              class="mono">username / username</code>)</p>
+        </div>
+        <button type="button" class="btn btn-outline btn-sm js-close-dialog"
+          data-dialog="dialog-create-user">Close</button>
+      </div>
+
+      <form id="create-user-form" action="#create-user" method="POST" novalidate>
+        <div class="form-group">
+          <fieldset class="priority-fieldset">
+            <legend class="priority-legend">Account Role <span class="req" style="color:var(--danger);">*</span>
+            </legend>
+            <div class="role-grid-3col">
+              <div class="priority-option">
+                <input type="radio" id="role-store" name="role" value="store" class="visually-hidden" checked />
+                <label for="role-store" class="priority-label" data-prio="medium">Store Account</label>
+              </div>
+              <div class="priority-option">
+                <input type="radio" id="role-fixer" name="role" value="fixer" class="visually-hidden" />
+                <label for="role-fixer" class="priority-label" data-prio="high">Technician Account</label>
+              </div>
+              <div class="priority-option">
+                <input type="radio" id="role-superadmin" name="role" value="superadmin" class="visually-hidden" />
+                <label for="role-superadmin" class="priority-label" data-prio="low">SuperAdmin</label>
+              </div>
+            </div>
+          </fieldset>
+        </div>
+
+        <!-- Store Branch Dropdown (When role is store account) -->
+        <div class="form-group" id="create-user-store-dropdown-group">
+          <label for="new-user-store-select" class="form-label">Store Branch (From Store Management) <span class="req">*</span></label>
+          <select id="new-user-store-select" name="store_id" class="form-select">
+            <!-- Populated dynamically from state.stores -->
+          </select>
+          <span class="form-hint">Assign this store account to a registered branch in Store Management.</span>
+        </div>
+
+        <!-- Full Name / Display Name -->
+        <div class="form-group" id="create-user-display-group">
+          <label for="new-user-display" class="form-label" id="label-new-user-display">Account Display Name <span class="req">*</span></label>
+          <input
+            type="text"
+            id="new-user-display"
+            name="display_name"
+            class="form-input"
+            placeholder="e.g. Successo Store - Main Branch"
+            required
+          />
+        </div>
+
+        <div class="form-group">
+          <label for="new-user-username" class="form-label">Username <span class="req">*</span></label>
+          <input type="text" id="new-user-username" name="username" class="form-input mono" placeholder="e.g. store3"
+            autocorrect="off" autocapitalize="off" spellcheck="false" required />
+          <span class="form-hint">Password is automatically set to match the username (<code
+              class="mono">username / username</code>).</span>
+        </div>
+
+        <div class="form-group">
+          <label for="new-user-password" class="form-label">Default Password (Auto-Synced with Username) <span
+              class="req">*</span></label>
+          <input type="text" id="new-user-password" name="password" class="form-input mono"
+            placeholder="Auto-filled same as username" autocorrect="off" autocapitalize="off" spellcheck="false"
+            required />
+        </div>
+
+        <div class="form-group">
+          <label for="new-user-phone" class="form-label">Mobile Phone Number (For SabayKonekta SMS) <span
+              class="req">*</span></label>
+          <input type="tel" id="new-user-phone" name="phone" class="form-input mono" placeholder="+639171234567"
+            autocomplete="tel" required />
+        </div>
+
+        <div class="dialog-footer">
+          <button type="button" class="btn btn-outline js-close-dialog" data-dialog="dialog-create-user">Cancel</button>
+          <button type="submit" class="btn btn-primary">
+            Create Account
+          </button>
+        </div>
+      </form>
+    </div>
+  </dialog>
+
+
+  <!-- =========================================================================
+       MODAL 1: MAINTENANCE TECHNICIAN — UPLOAD REPAIR PROOF + TIME & DATE
+       ========================================================================= -->
+  <dialog id="dialog-fixer-submit" class="flat-dialog" aria-labelledby="fixer-modal-title">
+    <div class="dialog-inner">
+      <div class="dialog-header">
+        <div>
+          <h3 id="fixer-modal-title" class="section-title">Maintenance Technician: Upload Repair Proof + Date &amp; Time
+          </h3>
+          <p id="fixer-modal-subtitle" class="text-xs text-muted mono"></p>
+        </div>
+        <button type="button" class="btn btn-outline btn-sm js-close-dialog"
+          data-dialog="dialog-fixer-submit">Close</button>
+      </div>
+
+      <form id="fixer-proof-form" action="#submit-fix" method="POST" novalidate>
+        <input type="hidden" id="fix-report-id" name="report_id" />
+
+        <!-- 1. Picture of the Repair (Device Camera or Gallery) -->
+        <div class="form-group">
+          <label class="form-label">1. Upload Picture of the Repair (Proof of Fix) <span class="req">*</span></label>
+          <div class="upload-zone" style="text-align:center; padding:1.25rem 1rem;">
+            <div style="display:flex; gap:0.5rem; justify-content:center; flex-wrap:wrap; margin-bottom:0.75rem;">
+              <button type="button" class="btn btn-primary js-open-camera-btn" data-target="fix">
+                <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round"
+                    d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                <span>Take Photo with Camera</span>
+              </button>
+              <label for="fix-photo-input" class="btn btn-outline" style="cursor:pointer; margin-bottom:0;">
+                <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round"
+                    d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                </svg>
+                <span>Upload from Gallery / Files</span>
+              </label>
+            </div>
+
+            <input type="file" id="fix-photo-input" name="fix_photo" accept="image/*" class="visually-hidden" />
+            <input type="file" id="fix-photo-native-camera" name="fix_photo_native" accept="image/*"
+              capture="environment" class="visually-hidden" />
+
+            <span class="form-hint" style="display:block; margin-top:0.25rem;">Take a live picture of the completed
+              repair, or upload proof from files.</span>
+
+            <!-- Photo Preview Area -->
+            <div id="fix-photo-preview-wrap" class="hidden" style="margin-top:0.875rem;">
+              <div
+                style="position:relative; display:inline-block; border:2px solid var(--border-color); border-radius:var(--radius-md); overflow:hidden; background:#000;">
+                <img id="fix-photo-preview" src="" alt="Preview of fixed item"
+                  style="max-height:220px; max-width:100%; object-fit:contain; display:block;" />
+              </div>
+              <div style="margin-top:0.5rem; display:flex; justify-content:center; gap:0.5rem; align-items:center;">
+                <span class="badge badge-success">&#10003; Repair Photo Ready</span>
+                <button type="button" class="btn btn-outline btn-sm js-clear-photo-btn" data-target="fix"
+                  style="color:var(--danger); border-color:var(--danger-border);">Remove / Retake</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-row-2col">
+          <div class="form-group">
+            <label for="fix-date-input" class="form-label">2. Date Repaired <span class="req">*</span></label>
+            <input type="date" id="fix-date-input" name="fixed_date" class="form-input mono" required />
+          </div>
+          <div class="form-group">
+            <label for="fix-time-input" class="form-label">3. Time Repaired <span class="req">*</span></label>
+            <input type="time" id="fix-time-input" name="fixed_time" class="form-input mono" required />
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="fix-notes-input" class="form-label">4. Repair Notes / Description (Optional)</label>
+          <textarea id="fix-notes-input" name="fix_notes" class="form-textarea"
+            placeholder="Describe what was repaired or replaced..."></textarea>
+        </div>
+
+        <div class="dialog-footer">
+          <button type="button" class="btn btn-outline js-close-dialog"
+            data-dialog="dialog-fixer-submit">Cancel</button>
+          <button type="submit" id="btn-submit-fix-proof" class="btn btn-success">
+            Submit Repair Proof &rarr; Send to Store Account for Approval
+          </button>
+        </div>
+      </form>
+    </div>
+  </dialog>
+
+
+  <!-- =========================================================================
+       MODAL 2: STORE ACCOUNT — APPROVE FIX (IF LEGIT) WITH TIME & DATE
+       ========================================================================= -->
+  <dialog id="dialog-store-approve" class="flat-dialog" aria-labelledby="approve-modal-title">
+    <div class="dialog-inner">
+      <div class="dialog-header">
+        <div>
+          <h3 id="approve-modal-title" class="section-title">Store Approval: Is the Technician's Repair Legit?</h3>
+          <p id="approve-modal-subtitle" class="text-xs text-muted mono"></p>
+        </div>
+        <button type="button" class="btn btn-outline btn-sm js-close-dialog"
+          data-dialog="dialog-store-approve">Close</button>
+      </div>
+
+      <form id="store-approve-form" action="#approve-fix" method="POST" novalidate>
+        <input type="hidden" id="approve-report-id" name="report_id" />
+
+        <div id="approve-comparison-box" class="report-images-row has-two" style="margin-bottom:1rem;"></div>
+
+        <div class="form-group">
+          <fieldset class="priority-fieldset">
+            <legend class="priority-legend">1. Verify Repair Legitimacy <span class="req"
+                style="color:var(--danger);">*</span></legend>
+            <div class="form-row-2col" style="margin-top:0.35rem;">
+              <div class="priority-option">
+                <input type="radio" id="decision-approve" name="decision" value="approved" class="visually-hidden"
+                  checked />
+                <label for="decision-approve" class="priority-label" data-prio="medium">[APPROVE] Yes, Repair is
+                  Legit</label>
+              </div>
+              <div class="priority-option">
+                <input type="radio" id="decision-reject" name="decision" value="rejected" class="visually-hidden" />
+                <label for="decision-reject" class="priority-label" data-prio="urgent">[REJECT] Not Legit / Needs
+                  Re-Work</label>
+              </div>
+            </div>
+          </fieldset>
+        </div>
+
+        <div class="form-row-2col">
+          <div class="form-group">
+            <label for="approve-date-input" class="form-label">2. Approval Date <span class="req">*</span></label>
+            <input type="date" id="approve-date-input" name="approved_date" class="form-input mono" required />
+          </div>
+          <div class="form-group">
+            <label for="approve-time-input" class="form-label">3. Approval Time <span class="req">*</span></label>
+            <input type="time" id="approve-time-input" name="approved_time" class="form-input mono" required />
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="approve-remarks-input" class="form-label">4. Store Approval Note (Optional)</label>
+          <textarea id="approve-remarks-input" name="approval_remarks" class="form-textarea"
+            placeholder="Confirm that the broken item is now working properly..."></textarea>
+        </div>
+
+        <div class="dialog-footer">
+          <button type="button" class="btn btn-outline js-close-dialog"
+            data-dialog="dialog-store-approve">Cancel</button>
+          <button type="submit" id="btn-submit-store-approval" class="btn btn-success">
+            Confirm Store Approval &rarr; Notify SuperAdmin
+          </button>
+        </div>
+      </form>
+    </div>
+  </dialog>
+
+
+  <!-- =========================================================================
+       MODAL 3: SUPERADMIN — NOTIFY THE MAINTENANCE TECHNICIAN (SMS + IN-APP)
+       ========================================================================= -->
+  <dialog id="dialog-notify-fixer" class="flat-dialog" aria-labelledby="notify-fixer-title">
+    <div class="dialog-inner">
+      <div class="dialog-header">
+        <div>
+          <h3 id="notify-fixer-title" class="section-title">SuperAdmin: Dispatch Maintenance Technician (SMS + App)</h3>
+          <p id="notify-fixer-subtitle" class="text-xs text-muted mono"></p>
+        </div>
+        <button type="button" class="btn btn-outline btn-sm js-close-dialog"
+          data-dialog="dialog-notify-fixer">Close</button>
+      </div>
+
+      <form id="notify-fixer-form" action="#notify-fixer" method="POST" novalidate>
+        <input type="hidden" id="notify-report-id" name="report_id" />
+
+        <div class="form-group">
+          <label for="notify-fixer-target" class="form-label">Select Maintenance Technician <span
+              class="req">*</span></label>
+          <select id="notify-fixer-target" name="fixer_username" class="form-select" required></select>
+        </div>
+
+        <div class="form-group">
+          <label for="notify-fixer-phone" class="form-label">Technician Mobile Number (SabayKonekta SMS) <span
+              class="req">*</span></label>
+          <input type="tel" id="notify-fixer-phone" name="fixer_phone" class="form-input mono" required />
+        </div>
+
+        <div class="form-group">
+          <label for="notify-fixer-message" class="form-label">Notification &amp; SMS Message <span
+              class="req">*</span></label>
+          <textarea id="notify-fixer-message" name="message" class="form-textarea" required></textarea>
+        </div>
+
+        <div class="dialog-footer">
+          <button type="button" class="btn btn-outline js-close-dialog"
+            data-dialog="dialog-notify-fixer">Cancel</button>
+          <button type="submit" id="btn-send-fixer-notif" class="btn btn-primary">
+            Send SMS &amp; App Dispatch to Technician
+          </button>
+        </div>
+      </form>
+    </div>
+  </dialog>
+
+
+  <!-- =========================================================================
+       MODAL 4: IN-APP NOTIFICATIONS CENTER
+       ========================================================================= -->
+  <dialog id="dialog-notifications" class="flat-dialog" aria-labelledby="notif-modal-title">
+    <div class="dialog-inner">
+      <div class="dialog-header">
+        <div>
+          <h3 id="notif-modal-title" class="section-title">App Notifications</h3>
+          <p class="text-xs text-muted">Real-time alerts across Store, Maintenance Technician, and SuperAdmin</p>
+        </div>
+        <div style="display:flex; gap:0.4rem; flex-wrap:wrap;">
+          <button type="button" id="btn-mark-all-read" class="btn btn-outline btn-sm">Mark All Read</button>
+          <button type="button" class="btn btn-outline btn-sm js-close-dialog"
+            data-dialog="dialog-notifications">Close</button>
+        </div>
+      </div>
+
+      <div id="notifications-list"
+        style="display:flex; flex-direction:column; gap:0.625rem; max-height:60dvh; overflow-y:auto;"></div>
+    </div>
+  </dialog>
+
+
+  <!-- =========================================================================
+       MODAL 5: CHANGE PASSWORD MODAL
+       ========================================================================= -->
+  <dialog id="dialog-password" class="flat-dialog" aria-labelledby="pw-modal-title">
+    <div class="dialog-inner">
+      <div class="dialog-header">
+        <div>
+          <h3 id="pw-modal-title" class="section-title">Update Account Password</h3>
+          <p id="pw-modal-subtitle" class="text-xs text-muted mono"></p>
+        </div>
+        <button type="button" class="btn btn-outline btn-sm js-close-dialog"
+          data-dialog="dialog-password">Close</button>
+      </div>
+
+      <form id="change-pw-form" action="#change-password" method="POST" novalidate>
+        <div class="form-group">
+          <label for="new-password-input" class="form-label">New Password <span class="req">*</span></label>
+          <input type="text" id="new-password-input" name="new_password" class="form-input mono"
+            autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false" required />
+        </div>
+
+        <div class="dialog-footer">
+          <button type="button" class="btn btn-outline js-close-dialog" data-dialog="dialog-password">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save Password</button>
+        </div>
+      </form>
+    </div>
+  </dialog>
+
+
+  <!-- =========================================================================
+       MODAL 5B: EDIT USER ACCOUNT MODAL
+       ========================================================================= -->
+  <dialog id="dialog-edit-user" class="flat-dialog" aria-labelledby="edit-user-modal-title">
+    <div class="dialog-inner">
+      <div class="dialog-header">
+        <div>
+          <h3 id="edit-user-modal-title" class="section-title">Edit User Account</h3>
+          <p id="edit-user-modal-subtitle" class="text-xs text-muted mono"></p>
+        </div>
+        <button type="button" class="btn btn-outline btn-sm js-close-dialog"
+          data-dialog="dialog-edit-user">Close</button>
+      </div>
+
+      <form id="edit-user-form" action="#edit-user" method="POST" novalidate>
+        <input type="hidden" id="edit-user-id" name="user_id" />
+
+        <div class="form-group" id="edit-user-store-group" style="display:none;">
+          <label for="edit-user-store-select" class="form-label">Assigned Store Branch <span class="req">*</span></label>
+          <select id="edit-user-store-select" name="store_id" class="form-select"></select>
+          <span class="form-hint">Change the store branch assigned to this store account.</span>
+        </div>
+
+        <div class="form-group">
+          <label for="edit-user-display" class="form-label" id="edit-user-display-label">Full Name / Display Name <span class="req">*</span></label>
+          <input type="text" id="edit-user-display" name="display_name" class="form-input" required />
+        </div>
+
+        <div class="form-group">
+          <label for="edit-user-phone" class="form-label">Mobile Number for SMS Notifications <span
+              class="req">*</span></label>
+          <input type="tel" id="edit-user-phone" name="phone_number" class="form-input mono" placeholder="+639XXXXXXXXX"
+            required />
+        </div>
+
+        <div class="form-group">
+          <label for="edit-user-password" class="form-label">Password <span class="req">*</span></label>
+          <input type="text" id="edit-user-password" name="password" class="form-input mono" autocomplete="off"
+            required />
+          <p class="form-hint">Default rule is username matches password (e.g. <code class="mono">store1/store1</code>).
+          </p>
+        </div>
+
+        <div class="dialog-footer">
+          <button type="button" class="btn btn-outline js-close-dialog" data-dialog="dialog-edit-user">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save Changes</button>
+        </div>
+      </form>
+    </div>
+  </dialog>
+
+
+  <!-- =========================================================================
+       MODAL 5B: REPORT DETAILS & TIMELINE MODAL (Photos, Proof & Workflow Actions)
+       ========================================================================= -->
+  <dialog id="dialog-report-details" class="flat-dialog" aria-labelledby="report-modal-id" style="max-width:780px;">
+    <div class="dialog-inner">
+      <div class="dialog-header">
+        <div>
+          <div style="display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;">
+            <h3 id="report-modal-id" class="section-title mono" style="margin-bottom:0;">REP-0000</h3>
+            <span id="report-modal-prio-badge" class="badge badge-danger">PRIORITY</span>
+            <span id="report-modal-status-badge" class="badge badge-neutral">STATUS</span>
+          </div>
+          <p id="report-modal-subtitle" class="text-xs text-muted" style="margin-top:0.25rem;">Store Name &bull;
+            Reported details</p>
+        </div>
+        <button type="button" class="btn btn-outline btn-sm js-close-dialog"
+          data-dialog="dialog-report-details">Close</button>
+      </div>
+
+      <div id="report-modal-body" class="dialog-body-scroll"
+        style="display:flex; flex-direction:column; gap:1.15rem; max-height:75vh; overflow-y:auto; padding-right:0.25rem;">
+        <!-- Populated dynamically via JS with photos, issue details, and 3-step audit trail -->
+      </div>
+
+      <div class="dialog-footer" id="report-modal-footer">
+        <button type="button" class="btn btn-outline js-close-dialog" data-dialog="dialog-report-details">Close</button>
+      </div>
+    </div>
+  </dialog>
+
+
+  <!-- =========================================================================
+       MODAL 5C: STORE BRANCH DETAILS MODAL (Overview, Metrics & Actions)
+       ========================================================================= -->
+  <dialog id="dialog-store-details" class="flat-dialog" aria-labelledby="store-modal-name" style="max-width:560px;">
+    <div class="dialog-inner">
+      <div class="dialog-header">
+        <div>
+          <div style="display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;">
+            <h3 id="store-modal-name" class="section-title" style="margin-bottom:0;">Store Branch</h3>
+            <span class="badge badge-primary">STORE</span>
+          </div>
+          <p id="store-modal-username" class="text-xs text-muted mono" style="margin-top:0.25rem;">@username</p>
+        </div>
+        <button type="button" class="btn btn-outline btn-sm js-close-dialog"
+          data-dialog="dialog-store-details">Close</button>
+      </div>
+
+      <div id="store-modal-body" style="display:flex; flex-direction:column; gap:1rem;">
+        <!-- Populated dynamically -->
+      </div>
+
+      <div class="dialog-footer" id="store-modal-footer">
+        <button type="button" class="btn btn-outline js-close-dialog" data-dialog="dialog-store-details">Close</button>
+      </div>
+    </div>
+  </dialog>
+
+
+  <!-- =========================================================================
+       MODAL 5D: USER ACCOUNT DETAILS MODAL (Overview & Actions)
+       ========================================================================= -->
+  <dialog id="dialog-user-details" class="flat-dialog" aria-labelledby="user-modal-name" style="max-width:560px;">
+    <div class="dialog-inner">
+      <div class="dialog-header">
+        <div>
+          <div style="display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;">
+            <h3 id="user-modal-name" class="section-title" style="margin-bottom:0;">User Account</h3>
+            <span id="user-modal-role-badge" class="badge badge-neutral">ROLE</span>
+          </div>
+          <p id="user-modal-username" class="text-xs text-muted mono" style="margin-top:0.25rem;">@username</p>
+        </div>
+        <button type="button" class="btn btn-outline btn-sm js-close-dialog"
+          data-dialog="dialog-user-details">Close</button>
+      </div>
+
+      <div id="user-modal-body" style="display:flex; flex-direction:column; gap:1rem;">
+        <!-- Populated dynamically -->
+      </div>
+
+      <div class="dialog-footer" id="user-modal-footer">
+        <button type="button" class="btn btn-outline js-close-dialog" data-dialog="dialog-user-details">Close</button>
+      </div>
+    </div>
+  </dialog>
+
+
+  <!-- =========================================================================
+       MODAL 5E: DEVICE LIVE CAMERA CAPTURE (WebRTC Viewfinder + Fallback)
+       ========================================================================= -->
+  <dialog id="dialog-camera-capture" class="flat-dialog" aria-labelledby="camera-modal-title" style="max-width:540px;">
+    <div class="dialog-inner">
+      <div class="dialog-header">
+        <div>
+          <div style="display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;">
+            <h3 id="camera-modal-title" class="section-title" style="margin-bottom:0;">Device Camera Viewfinder</h3>
+            <span class="badge badge-primary">LIVE CAMERA</span>
+          </div>
+          <p id="camera-modal-subtitle" class="text-xs text-muted" style="margin-top:0.25rem;">Point at the item and
+            take photo</p>
+        </div>
+        <button type="button" class="btn btn-outline btn-sm js-close-camera">Close</button>
+      </div>
+
+      <div style="display:flex; flex-direction:column; gap:0.875rem;">
+        <!-- Live Video Viewfinder -->
+        <div
+          style="position:relative; width:100%; height:320px; background-color:#000000; border-radius:var(--radius-md); overflow:hidden; display:flex; align-items:center; justify-content:center;">
+          <video id="camera-video-stream" autoplay playsinline muted
+            style="width:100%; height:100%; object-fit:cover;"></video>
+          <img id="camera-snapshot-preview" src="" alt="Captured Snapshot" class="hidden"
+            style="width:100%; height:100%; object-fit:contain; background:#000;" />
+          <canvas id="camera-snapshot-canvas" style="display:none;"></canvas>
+
+          <div id="camera-loading-overlay" class="hidden"
+            style="position:absolute; inset:0; background:rgba(0,0,0,0.7); display:flex; flex-direction:column; align-items:center; justify-content:center; color:#fff; gap:0.5rem;">
+            <span class="pulse-indicator"></span>
+            <span class="text-xs">Starting device camera...</span>
+          </div>
+
+          <div id="camera-error-msg" class="hidden"
+            style="position:absolute; inset:0; background:rgba(0,0,0,0.85); padding:1.5rem; text-align:center; color:#fff; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:0.75rem;">
+            <div style="font-weight:700; color:var(--danger);">Camera Access Error</div>
+            <p id="camera-error-text" class="text-xs" style="color:var(--text-secondary);"></p>
+            <button type="button" id="btn-fallback-native-camera" class="btn btn-primary btn-sm">Use Native Camera
+              App</button>
+          </div>
+        </div>
+
+        <!-- Camera Controls -->
+        <div id="camera-live-controls"
+          style="display:flex; align-items:center; justify-content:space-between; gap:0.5rem; flex-wrap:wrap;">
+          <button type="button" id="btn-switch-camera" class="btn btn-outline btn-sm"
+            title="Flip / Switch front/back camera">
+            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round"
+                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            <span>Flip Camera</span>
+          </button>
+
+          <button type="button" id="btn-snap-photo" class="btn btn-primary"
+            style="padding:0.6rem 1.5rem; font-weight:700;">
+            <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round"
+                d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+            <span>Snap Photo</span>
+          </button>
+
+          <button type="button" class="btn btn-outline btn-sm js-close-camera">Cancel</button>
+        </div>
+
+        <!-- Snapshot Review Controls (Hidden until photo snapped) -->
+        <div id="camera-review-controls" class="hidden"
+          style="display:flex; align-items:center; justify-content:center; gap:0.75rem; flex-wrap:wrap;">
+          <button type="button" id="btn-use-snapshot" class="btn btn-success">
+            <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+            </svg>
+            <span>Use This Photo</span>
+          </button>
+          <button type="button" id="btn-retake-snapshot" class="btn btn-outline">
+            Retake Photo
+          </button>
+        </div>
+      </div>
+    </div>
+  </dialog>
+
+
+  <!-- =========================================================================
+       MODAL 6: FULL IMAGE LIGHTBOX
+       ========================================================================= -->
+  <dialog id="dialog-lightbox" class="flat-dialog" aria-labelledby="lightbox-title" style="max-width:760px;">
+    <div class="dialog-inner">
+      <div class="dialog-header">
+        <h3 id="lightbox-title" class="section-title">Telegram Image Viewer</h3>
+        <button type="button" class="btn btn-outline btn-sm js-close-dialog"
+          data-dialog="dialog-lightbox">Close</button>
+      </div>
+      <div
+        style="background-color:var(--bg-muted); border:2px solid var(--border-color); border-radius:var(--radius-md); overflow:hidden;">
+        <img id="lightbox-img" src="" alt="Full report photo"
+          style="width:100%; max-height:70dvh; object-fit:contain; display:block;" />
+      </div>
+      <p id="lightbox-meta" class="text-xs text-muted mono" style="margin-top:0.5rem;"></p>
+    </div>
+  </dialog>
+
+  <!-- Main Application ES Module -->
+  <script type="module" src="./app.js"></script>
+</body>
+
+</html>
