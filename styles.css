@@ -2016,3 +2016,171 @@ dialog.flat-dialog::backdrop {
   transform: translateY(-1px);
 }
 
+/* ==========================================================================
+   SLA 72-HOUR ALERT BADGES & INDICATORS
+   ========================================================================== */
+.sla-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.55rem;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+  line-height: 1.2;
+}
+
+.sla-green {
+  background-color: #ecfdf5;
+  color: #065f46;
+  border: 1px solid #a7f3d0;
+}
+
+.sla-yellow {
+  background-color: #fffbeb;
+  color: #92400e;
+  border: 1px solid #fde68a;
+}
+
+.sla-red {
+  background-color: #fef2f2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+  animation: pulseSla 2.5s infinite ease-in-out;
+}
+
+.sla-breached {
+  background-color: #450a0a;
+  color: #fecaca;
+  border: 1px solid #dc2626;
+  font-weight: 800;
+}
+
+.sla-resolved {
+  background-color: #f0fdf4;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+}
+
+@keyframes pulseSla {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.78; }
+}
+
+.badge-concern {
+  background-color: #eff6ff;
+  color: #1e40af;
+  border: 1px solid #bfdbfe;
+  font-weight: 600;
+}
+
+/* ==========================================================================
+   REPORTING DASHBOARD & FILTER TOOLBAR
+   ========================================================================== */
+.report-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.875rem;
+  margin-bottom: 1.25rem;
+}
+
+.report-kpi-card {
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  box-shadow: var(--shadow-xs);
+}
+
+.report-kpi-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.report-kpi-val {
+  font-size: 1.875rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  line-height: 1.1;
+  font-family: var(--font-mono);
+}
+
+.report-kpi-sub {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.filter-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: flex-end;
+  background-color: var(--bg-surface);
+  padding: 1rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  margin-bottom: 1.25rem;
+  box-shadow: var(--shadow-xs);
+}
+
+.filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 140px;
+  flex: 1 1 auto;
+}
+
+.filter-group label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+}
+
+.filter-group select,
+.filter-group input {
+  height: 38px;
+  font-size: 0.8125rem;
+}
+
+/* Print Optimization for Reports */
+@media print {
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+  .top-header,
+  .side-nav,
+  .role-switcher-strip,
+  .quick-demo-box,
+  .filter-toolbar,
+  .btn,
+  .toast-stack,
+  .auth-footer-meta {
+    display: none !important;
+  }
+  .main-content {
+    margin: 0 !important;
+    padding: 0 !important;
+    max-width: 100% !important;
+  }
+  .flat-table-responsive {
+    border: none !important;
+    box-shadow: none !important;
+    overflow: visible !important;
+  }
+  .flat-table th,
+  .flat-table td {
+    border: 1px solid #d1d5db !important;
+  }
+}
+
