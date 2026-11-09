@@ -2,9 +2,9 @@
  * SuccessoReport — Internal Helpdesk & Issue Tracking System
  * --------------------------------------------------------------------------
  * Role-Based Access Control (RBAC):
- *   1. Requester (Employee): Submits tickets, tracks requests, confirms/rejects resolutions.
+ *   1. Requester (Employee): Submits tickets, tracks requests, views details, confirms/rejects resolutions.
  *   2. Head Admin: Triages tickets, sets priority (Low/Med/High/Urgent), assigns to Internal/External, SLA monitoring, reports.
- *   3. Personnel (Internal/External): "My Tasks" view (defaults to today's tasks), marks done with proof photo.
+ *   3. Personnel (Internal/External): "My Tasks" view (tasks due today + rework), views details & history, marks done with proof.
  *   4. Superadmin: Global system oversight, User & Branch CRUD, Telegram/SLA settings, reports.
  *
  * Core Integrations:
@@ -20,7 +20,6 @@ import {
   collection,
   doc,
   setDoc,
-  deleteDoc,
   onSnapshot
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
@@ -66,11 +65,11 @@ const CONCERN_TYPES = [
 ];
 
 const PREPOPULATED_EMPLOYEES = [
-  { name: "Maria Clara", phone: "+639170000005", branchId: "branch_main", branchName: "Successo Store - Main Branch", department: "Marketing" },
-  { name: "Jose Rizal", phone: "+639170000006", branchId: "branch_makati", branchName: "Successo Store - Makati Branch", department: "Supply & Inventory" },
-  { name: "Andres Bonifacio", phone: "+639171110003", branchId: "branch_hub", branchName: "Successo Central Logistics Hub", department: "Warehouse & Logistics" },
-  { name: "Gabriela Silang", phone: "+639171110004", branchId: "branch_main", branchName: "Successo Store - Main Branch", department: "HRD" },
-  { name: "Emilio Aguinaldo", phone: "+639171110005", branchId: "branch_makati", branchName: "Successo Store - Makati Branch", department: "Accounting" }
+  { name: "Maria Clara", email: "maria.clara@successo.ph", phone: "+639170000005", branchId: "branch_main", branchName: "Successo Store - Main Branch", department: "Marketing" },
+  { name: "Jose Rizal", email: "jose.rizal@successo.ph", phone: "+639170000006", branchId: "branch_makati", branchName: "Successo Store - Makati Branch", department: "Supply & Inventory" },
+  { name: "Andres Bonifacio", email: "andres.bonifacio@successo.ph", phone: "+639171110003", branchId: "branch_hub", branchName: "Successo Central Logistics Hub", department: "Warehouse & Logistics" },
+  { name: "Gabriela Silang", email: "gabriela.silang@successo.ph", phone: "+639171110004", branchId: "branch_main", branchName: "Successo Store - Main Branch", department: "HRD" },
+  { name: "Emilio Aguinaldo", email: "emilio.aguinaldo@successo.ph", phone: "+639171110005", branchId: "branch_makati", branchName: "Successo Store - Makati Branch", department: "Accounting" }
 ];
 
 const DEFAULT_STORES = [
@@ -110,6 +109,7 @@ const DEFAULT_USERS = [
     password: "superadmin",
     role: "superadmin",
     displayName: "System SuperAdmin",
+    email: "superadmin@successo.ph",
     department: "Executive & System Admin",
     branchId: "branch_main",
     branchName: "Successo Store - Main Branch",
@@ -122,6 +122,7 @@ const DEFAULT_USERS = [
     password: "headadmin",
     role: "headadmin",
     displayName: "Operations Head Admin",
+    email: "headadmin@successo.ph",
     department: "Admin Triage & Operations",
     branchId: "branch_main",
     branchName: "Successo Store - Main Branch",
@@ -134,6 +135,7 @@ const DEFAULT_USERS = [
     password: "personnel1",
     role: "personnel",
     displayName: "Juan Dela Cruz (Maintenance & Facilities)",
+    email: "juan.delacruz@successo.ph",
     department: "Repair & Maintenance",
     branchId: "branch_main",
     branchName: "Successo Store - Main Branch",
@@ -147,6 +149,7 @@ const DEFAULT_USERS = [
     password: "personnel2",
     role: "personnel",
     displayName: "Pedro Santos (IT & Asset Specialist)",
+    email: "pedro.santos@successo.ph",
     department: "Asset & Tools",
     branchId: "branch_makati",
     branchName: "Successo Store - Makati Branch",
@@ -160,6 +163,7 @@ const DEFAULT_USERS = [
     password: "requester1",
     role: "requester",
     displayName: "Maria Clara",
+    email: "maria.clara@successo.ph",
     department: "Marketing",
     branchId: "branch_main",
     branchName: "Successo Store - Main Branch",
@@ -172,6 +176,7 @@ const DEFAULT_USERS = [
     password: "requester2",
     role: "requester",
     displayName: "Jose Rizal",
+    email: "jose.rizal@successo.ph",
     department: "Supply & Inventory",
     branchId: "branch_makati",
     branchName: "Successo Store - Makati Branch",
@@ -219,6 +224,7 @@ const DEFAULT_TICKETS = [
     ],
     requesterId: "user_requester1",
     requesterName: "Maria Clara",
+    requesterEmail: "maria.clara@successo.ph",
     contactNumber: "+639170000005",
     branchId: "branch_main",
     branchName: "Successo Store - Main Branch",
@@ -253,6 +259,7 @@ const DEFAULT_TICKETS = [
     ],
     requesterId: "user_requester2",
     requesterName: "Jose Rizal",
+    requesterEmail: "jose.rizal@successo.ph",
     contactNumber: "+639170000006",
     branchId: "branch_makati",
     branchName: "Successo Store - Makati Branch",
@@ -287,6 +294,7 @@ const DEFAULT_TICKETS = [
     ],
     requesterId: "user_requester1",
     requesterName: "Maria Clara",
+    requesterEmail: "maria.clara@successo.ph",
     contactNumber: "+639170000005",
     branchId: "branch_hub",
     branchName: "Successo Central Logistics Hub",
@@ -321,6 +329,7 @@ const DEFAULT_TICKETS = [
     ],
     requesterId: "user_requester2",
     requesterName: "Jose Rizal",
+    requesterEmail: "jose.rizal@successo.ph",
     contactNumber: "+639170000006",
     branchId: "branch_makati",
     branchName: "Successo Store - Makati Branch",
@@ -392,6 +401,14 @@ function loadLocalState() {
 
     const rawUsers = localStorage.getItem(LS_KEYS.USERS);
     state.users = rawUsers ? JSON.parse(rawUsers) : [...DEFAULT_USERS];
+
+    // Ensure all user profiles have email
+    state.users.forEach(u => {
+      if (!u.email) {
+        const empMatch = PREPOPULATED_EMPLOYEES.find(e => e.name.toLowerCase() === (u.displayName || "").toLowerCase());
+        u.email = empMatch?.email || `${u.username}@successo.ph`;
+      }
+    });
 
     const rawTickets = localStorage.getItem(LS_KEYS.TICKETS);
     state.tickets = rawTickets ? JSON.parse(rawTickets) : [...DEFAULT_TICKETS];
@@ -472,15 +489,6 @@ async function persistTicket(ticket) {
 /* ==========================================================================
    4. 72-HOUR SLA ENGINE & DYNAMIC COLOR-CODING
    ========================================================================== */
-/**
- * Calculates elapsed hours, remaining allowable hours (out of 72h), and SLA tier.
- * Tiers:
- *   - 'good'    : < 24h elapsed (Green)
- *   - 'warning' : 24h - 48h elapsed (Yellow Warning)
- *   - 'danger'  : 48h - 72h elapsed (Red Alert / Approaching Breach)
- *   - 'breached': > 72h elapsed (Critical Red / SLA Overdue)
- *   - 'resolved': Officially closed
- */
 function getTicketSlaInfo(ticket) {
   const maxHours = state.settings.slaHoursMax || 72;
   const reportedMs = new Date(ticket.reportedAt).getTime();
@@ -634,23 +642,28 @@ async function startDeviceCamera(target) {
   controlsReview.classList.add("hidden");
   controlsLive.classList.remove("hidden");
   errorBox.classList.add("hidden");
-  dialog.showModal();
+  if (!dialog.open) dialog.showModal();
 
   if (cameraMediaStream) {
     cameraMediaStream.getTracks().forEach(t => t.stop());
+    cameraMediaStream = null;
   }
 
   try {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      throw new Error("Device camera API not supported on this browser or insecure context (requires HTTPS or localhost). Please use the file/photo upload button.");
+    }
+
     cameraMediaStream = await navigator.mediaDevices.getUserMedia({
       video: { facingMode: cameraFacingMode, width: { ideal: 1280 }, height: { ideal: 720 } },
       audio: false
     });
     video.srcObject = cameraMediaStream;
   } catch (err) {
-    console.error("Camera access error:", err);
+    console.warn("Camera access note:", err);
     errorBox.classList.remove("hidden");
     const errText = document.getElementById("camera-error-text");
-    if (errText) errText.textContent = err.message || "Camera permission denied or camera not found.";
+    if (errText) errText.textContent = err.message || "Camera access unavailable. Tap below to capture or select from files.";
   }
 }
 
@@ -690,14 +703,61 @@ function snapPhotoFromCamera() {
       const wrap = document.getElementById("report-photo-preview-wrap");
       const img = document.getElementById("report-photo-preview");
       if (wrap && img) { img.src = dataUrl; wrap.classList.remove("hidden"); }
+      const hint = document.getElementById("report-upload-hint");
+      if (hint) hint.textContent = "Camera snapshot ready for submission.";
     } else {
       state.pendingFixPhotoDataUrl = dataUrl;
       state.pendingFixPhotoBlob = blob;
       const wrap = document.getElementById("fix-photo-preview-wrap");
       const img = document.getElementById("fix-photo-preview");
       if (wrap && img) { img.src = dataUrl; wrap.classList.remove("hidden"); }
+      const hint = document.getElementById("fix-upload-hint");
+      if (hint) hint.textContent = "Repair proof photo ready.";
     }
   }, "image/jpeg", 0.85);
+}
+
+function handleUploadedFile(file, target) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (re) => {
+    const dataUrl = re.target.result;
+    if (target === "report") {
+      state.pendingReportPhotoDataUrl = dataUrl;
+      state.pendingReportPhotoBlob = file;
+      const wrap = document.getElementById("report-photo-preview-wrap");
+      const img = document.getElementById("report-photo-preview");
+      const hint = document.getElementById("report-upload-hint");
+      if (wrap && img) {
+        if (file.type.startsWith("image/")) {
+          img.src = dataUrl;
+        } else {
+          img.src = createFlatSvgPlaceholder("#475569", "DOCUMENT ATTACHED", file.name);
+        }
+        wrap.classList.remove("hidden");
+      }
+      if (hint) hint.textContent = `Attached: ${file.name} (${Math.round(file.size / 1024)} KB)`;
+      showToast(`Attached ${file.name}`, "success");
+      setSubmitModalStep(2);
+    } else {
+      state.pendingFixPhotoDataUrl = dataUrl;
+      state.pendingFixPhotoBlob = file;
+      const wrap = document.getElementById("fix-photo-preview-wrap");
+      const img = document.getElementById("fix-photo-preview");
+      const hint = document.getElementById("fix-upload-hint");
+      if (wrap && img) {
+        if (file.type.startsWith("image/")) {
+          img.src = dataUrl;
+        } else {
+          img.src = createFlatSvgPlaceholder("#16a34a", "PROOF ATTACHED", file.name);
+        }
+        wrap.classList.remove("hidden");
+      }
+      if (hint) hint.textContent = `Proof Attached: ${file.name} (${Math.round(file.size / 1024)} KB)`;
+      showToast(`Proof attached: ${file.name}`, "success");
+    }
+  };
+  reader.readAsDataURL(file);
 }
 
 /* ==========================================================================
@@ -730,8 +790,8 @@ function getRoleTabs(role) {
   }
   // Requester (Employee)
   return [
-    { id: "panel-dashboard", label: "My Requests", iconSvg: ICONS.dashboard },
-    { id: "panel-tickets", label: "Track Tickets", iconSvg: ICONS.tickets }
+    { id: "panel-dashboard", label: "Home", iconSvg: ICONS.dashboard },
+    { id: "panel-tickets", label: "Tickets", iconSvg: ICONS.tickets }
   ];
 }
 
@@ -755,6 +815,10 @@ function switchTab(tabId) {
   if (target) target.classList.remove("hidden");
 
   document.querySelectorAll(".nav-item-btn").forEach(btn => {
+    btn.classList.toggle("active", btn.dataset.tab === tabId);
+  });
+
+  document.querySelectorAll(".js-mobile-nav-tab").forEach(btn => {
     btn.classList.toggle("active", btn.dataset.tab === tabId);
   });
 
@@ -851,33 +915,69 @@ function renderDashboardUI() {
 
   const role = state.currentUser.role;
 
-  // 1. REQUESTER VIEW: My requests, confirmation alerts, submit button
+  // 1. REQUESTER VIEW: Mobile-First Guided UI + Desktop Table
   if (role === "requester") {
-    const myTickets = state.tickets.filter(t => t.requesterId === state.currentUser.id || t.requesterName.toLowerCase().includes(state.currentUser.displayName.toLowerCase()));
+    const myTickets = state.tickets.filter(t => t.requesterId === state.currentUser.id || (t.requesterName && t.requesterName.toLowerCase().includes(state.currentUser.displayName.toLowerCase())));
     const pendingConfirm = myTickets.filter(t => t.status === "pending_confirmation");
     const activeTickets = myTickets.filter(t => t.status !== "resolved");
 
     container.innerHTML = `
-      <div class="page-header-bar">
-        <div>
-          <h2 class="page-title">Welcome, ${state.currentUser.displayName}</h2>
-          <p class="text-sm text-muted">Branch: <strong>${state.currentUser.branchName || "Main"}</strong> &bull; Department: <strong>${state.currentUser.department || "Employee"}</strong></p>
+      <!-- Mobile-First Guided Header (Mobile View: <= 768px) -->
+      <div class="mobile-only">
+        <div class="mobile-requester-guide">
+          <div class="guide-welcome" style="margin-bottom:0.75rem;">
+            <div class="guide-avatar">🏪</div>
+            <div>
+              <h2 class="guide-title">Hello, ${escapeHtml(state.currentUser.displayName)}! 👋</h2>
+              <p class="guide-subtitle">📍 <strong>${escapeHtml(state.currentUser.branchName || "Main Branch")}</strong> &bull; ${escapeHtml(state.currentUser.department || "Store Staff")}</p>
+            </div>
+          </div>
+
+          <!-- 3-Step Guided Workflow Banner -->
+          <div class="mobile-steps-banner">
+            <div class="mobile-step-item">
+              <div class="mobile-step-num">1</div>
+              <div class="mobile-step-text"><strong>1. Report Issue</strong>Tap (+) at bottom</div>
+            </div>
+            <div class="mobile-step-arrow">&rarr;</div>
+            <div class="mobile-step-item">
+              <div class="mobile-step-num" style="background:var(--warning); color:#fff;">2</div>
+              <div class="mobile-step-text"><strong>2. Assigned</strong>Repair in progress</div>
+            </div>
+            <div class="mobile-step-arrow">&rarr;</div>
+            <div class="mobile-step-item">
+              <div class="mobile-step-num" style="background:var(--success); color:#fff;">3</div>
+              <div class="mobile-step-text"><strong>3. Confirm Fix</strong>Verify resolution</div>
+            </div>
+          </div>
         </div>
-        <div>
-          <button type="button" class="btn btn-primary js-trigger-submit-modal">
-            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
-            <span>Submit New Ticket</span>
-          </button>
+      </div>
+
+      <!-- Desktop Header Bar (Desktop View: > 768px) -->
+      <div class="desktop-only">
+        <div class="page-header-bar">
+          <div>
+            <h2 class="page-title">Welcome, ${escapeHtml(state.currentUser.displayName)}</h2>
+            <p class="text-sm text-muted">Branch: <strong>${escapeHtml(state.currentUser.branchName || "Main")}</strong> &bull; Email: <strong>${escapeHtml(state.currentUser.email || "—")}</strong> &bull; Dept: <strong>${escapeHtml(state.currentUser.department || "Employee")}</strong></p>
+          </div>
+          <div>
+            <button type="button" class="btn btn-primary js-trigger-submit-modal">
+              <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+              <span>Submit New Ticket</span>
+            </button>
+          </div>
         </div>
       </div>
 
       ${pendingConfirm.length > 0 ? `
-        <div class="action-needed-banner" style="margin-bottom:1.25rem;">
+        <div class="action-needed-banner" style="margin-bottom:1.25rem; border-color:var(--purple); background:#faf5ff;">
           <div style="display:flex; align-items:center; gap:0.75rem;">
-            <span class="pulse-indicator" style="background:var(--purple);"></span>
+            <span class="pulse-indicator" style="background:var(--purple); width:12px; height:12px;"></span>
             <div>
-              <strong>Action Required: ${pendingConfirm.length} Ticket(s) Waiting for Your Confirmation</strong>
-              <div class="text-xs">Personnel completed the repair. Please verify and click 'Confirm Resolution' or 'Reject'.</div>
+              <strong style="color:var(--purple); font-size:0.95rem;">🎉 Action Required: ${pendingConfirm.length} Ticket(s) Completed by Technician!</strong>
+              <div class="text-xs" style="color:#6b21a8; margin-top:0.2rem;">
+                The technician has marked the repair as completed. Please review the proof photos and confirm or reject resolution.
+              </div>
             </div>
           </div>
         </div>
@@ -885,15 +985,15 @@ function renderDashboardUI() {
 
       <div class="kpi-grid">
         <div class="kpi-card">
-          <div class="kpi-label">My Total Tickets</div>
+          <div class="kpi-label">Total Requests</div>
           <div class="kpi-value">${myTickets.length}</div>
         </div>
         <div class="kpi-card">
-          <div class="kpi-label" style="color:var(--primary);">Active / In Progress</div>
+          <div class="kpi-label" style="color:var(--primary);">In Progress</div>
           <div class="kpi-value" style="color:var(--primary);">${activeTickets.length}</div>
         </div>
-        <div class="kpi-card">
-          <div class="kpi-label" style="color:var(--purple);">Needs My Confirmation</div>
+        <div class="kpi-card" style="${pendingConfirm.length > 0 ? "border:2px solid var(--purple); background:#faf5ff;" : ""}">
+          <div class="kpi-label" style="color:var(--purple);">Pending Confirmation</div>
           <div class="kpi-value" style="color:var(--purple);">${pendingConfirm.length}</div>
         </div>
         <div class="kpi-card">
@@ -902,58 +1002,32 @@ function renderDashboardUI() {
         </div>
       </div>
 
-      <div class="card">
-        <div class="card-header" style="display:flex; justify-content:space-between; align-items:center;">
-          <h3 class="section-title">My Recent Tickets</h3>
-          <span class="badge badge-neutral">${myTickets.length} Total</span>
-        </div>
-        <div class="flat-table-responsive" style="border:none;">
-          <table class="flat-table">
-            <thead>
-              <tr>
-                <th>Ticket ID</th>
-                <th>Concern Type</th>
-                <th>Title</th>
-                <th>Priority</th>
-                <th>SLA Elapsed</th>
-                <th>Status</th>
-                <th style="text-align:right;">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${myTickets.length === 0 ? `<tr><td colspan="7" style="text-align:center; padding:2rem;">No tickets submitted yet. Click "Submit New Ticket" to report an issue.</td></tr>` :
-                myTickets.map(t => {
-                  const sla = getTicketSlaInfo(t);
-                  return `
-                    <tr>
-                      <td class="mono font-bold">${t.id}</td>
-                      <td><span class="badge badge-concern">${t.concernType}</span></td>
-                      <td><strong>${escapeHtml(t.title)}</strong></td>
-                      <td>${getPriorityBadge(t.priority)}</td>
-                      <td><span class="sla-badge ${sla.badgeClass}">${sla.label}</span></td>
-                      <td>${getStatusBadge(t.status)}</td>
-                      <td style="text-align:right;">
-                        ${t.status === "pending_confirmation" ? `
-                          <button type="button" class="btn btn-success btn-sm js-open-confirm-modal" data-id="${t.id}">
-                            Confirm / Reject
-                          </button>
-                        ` : `
-                          <button type="button" class="btn btn-outline btn-sm js-open-ticket-details" data-id="${t.id}">
-                            ${ICONS.view}
-                          </button>
-                        `}
-                      </td>
-                    </tr>
-                  `;
-                }).join("")}
-            </tbody>
-          </table>
+      <!-- Dedicated Tickets Table Link Card (Replaces in-home cards) -->
+      <div class="card" style="margin-top:1.25rem; padding:1.75rem 1.25rem; text-align:center;">
+        <div style="display:flex; flex-direction:column; align-items:center; gap:0.5rem;">
+          <div style="width:48px; height:48px; border-radius:50%; background:var(--primary-soft); color:var(--primary); display:flex; align-items:center; justify-content:center;">
+            <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 02-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/>
+            </svg>
+          </div>
+          <h3 style="font-size:1.05rem; font-weight:800; color:var(--text-primary); margin:0.25rem 0 0 0;">View &amp; Track Requests in Tickets Table</h3>
+          <p class="text-xs text-muted" style="max-width:340px; margin:0 0 0.85rem 0; line-height:1.5;">
+            All your submitted tickets, repair status, and verification actions are listed in your dedicated Tickets table.
+          </p>
+          <div style="display:flex; gap:0.5rem; justify-content:center; flex-wrap:wrap;">
+            <button type="button" class="btn btn-primary" onclick="switchTab('panel-tickets')" style="font-weight:700;">
+              <span>Open Tickets Table &rarr;</span>
+            </button>
+            <button type="button" class="btn btn-outline js-trigger-submit-modal" style="font-weight:600;">
+              <span>+ Report New Issue</span>
+            </button>
+          </div>
         </div>
       </div>
     `;
   }
 
-  // 2. HEAD ADMIN VIEW: Triage queue, SLA risk alarms, assignment summary
+  // 2. HEAD ADMIN VIEW: Triage queue with elapsed time display, SLA risk alarms
   else if (role === "headadmin") {
     const unassigned = state.tickets.filter(t => t.status === "submitted");
     const slaRisks = state.tickets.filter(t => {
@@ -965,7 +1039,7 @@ function renderDashboardUI() {
       <div class="page-header-bar">
         <div>
           <h2 class="page-title">Head Admin Triage &amp; SLA Command Center</h2>
-          <p class="text-sm text-muted">Review incoming requests, assign internal/external labor, and prevent 72-hour SLA breaches.</p>
+          <p class="text-sm text-muted">Review incoming requests, monitor elapsed time, assign internal/external labor, and prevent 72h SLA breaches.</p>
         </div>
         <div>
           <button type="button" class="btn btn-outline btn-sm" onclick="switchTab('panel-reports')">
@@ -985,7 +1059,7 @@ function renderDashboardUI() {
         </div>
         <div class="kpi-card">
           <div class="kpi-label" style="color:var(--warning);">In Progress / Dispatched</div>
-          <div class="kpi-value" style="color:var(--warning);">${state.tickets.filter(t => t.status === "assigned" || t.status === "in_progress").length}</div>
+          <div class="kpi-value" style="color:var(--warning);">${state.tickets.filter(t => t.status === "assigned" || t.status === "in_progress" || t.status === "rejected").length}</div>
         </div>
         <div class="kpi-card">
           <div class="kpi-label" style="color:var(--success);">Resolved Tickets</div>
@@ -993,12 +1067,12 @@ function renderDashboardUI() {
         </div>
       </div>
 
-      <!-- Triage Queue Card -->
+      <!-- Triage Queue Card with ELAPSED TIME DISPLAY -->
       <div class="card" style="margin-bottom:1.5rem;">
         <div class="card-header" style="display:flex; justify-content:space-between; align-items:center;">
           <div>
             <h3 class="section-title">New Ticket Triage Queue</h3>
-            <p class="text-xs text-muted">Set priority level &amp; assign to internal staff or external contractor</p>
+            <p class="text-xs text-muted">Review elapsed time from time posted, set priority level &amp; dispatch tasks</p>
           </div>
           <span class="badge badge-primary">${unassigned.length} Pending Triage</span>
         </div>
@@ -1009,29 +1083,36 @@ function renderDashboardUI() {
                 <th>Ticket ID</th>
                 <th>Concern Type</th>
                 <th>Title</th>
-                <th>Requester</th>
-                <th>Branch</th>
-                <th>Reported At</th>
+                <th>Requester &amp; Branch</th>
+                <th>Elapsed Time &amp; SLA</th>
                 <th style="text-align:right;">Triage Action</th>
               </tr>
             </thead>
             <tbody>
-              ${unassigned.length === 0 ? `<tr><td colspan="7" style="text-align:center; padding:2rem;">All tickets have been triaged and dispatched. Great job!</td></tr>` :
-                unassigned.map(t => `
-                  <tr>
-                    <td class="mono font-bold">${t.id}</td>
-                    <td><span class="badge badge-concern">${t.concernType}</span></td>
-                    <td><strong>${escapeHtml(t.title)}</strong></td>
-                    <td>${escapeHtml(t.requesterName)}</td>
-                    <td>${escapeHtml(t.branchName)}</td>
-                    <td class="text-xs text-muted mono">${formatDateStr(t.reportedAt)}</td>
-                    <td style="text-align:right;">
-                      <button type="button" class="btn btn-primary btn-sm js-open-triage-modal" data-id="${t.id}">
-                        Triage &amp; Assign
-                      </button>
-                    </td>
-                  </tr>
-                `).join("")}
+              ${unassigned.length === 0 ? `<tr><td colspan="6" style="text-align:center; padding:2rem;">All tickets have been triaged and dispatched. Great job!</td></tr>` :
+                unassigned.map(t => {
+                  const sla = getTicketSlaInfo(t);
+                  return `
+                    <tr class="clickable-row js-open-ticket-details" data-id="${t.id}" style="cursor:pointer;" title="Click to view details">
+                      <td class="mono font-bold">${t.id}</td>
+                      <td><span class="badge badge-concern">${t.concernType}</span></td>
+                      <td><strong>${escapeHtml(t.title)}</strong></td>
+                      <td>
+                        <div>${escapeHtml(t.requesterName)}</div>
+                        <div class="text-xs text-muted">${escapeHtml(t.branchName)}</div>
+                      </td>
+                      <td>
+                        <span class="sla-badge ${sla.badgeClass}">${sla.label}</span>
+                        <div class="text-xs text-muted mono" style="margin-top:0.25rem;">Posted: ${formatDateStr(t.reportedAt)}</div>
+                      </td>
+                      <td style="text-align:right;" onclick="event.stopPropagation();">
+                        <button type="button" class="btn btn-primary btn-sm js-open-triage-modal" data-id="${t.id}">
+                          Triage &amp; Assign
+                        </button>
+                      </td>
+                    </tr>
+                  `;
+                }).join("")}
             </tbody>
           </table>
         </div>
@@ -1039,24 +1120,38 @@ function renderDashboardUI() {
     `;
   }
 
-  // 3. PERSONNEL VIEW: "My Tasks" dashboard defaulting to Today's Tasks
+  // 3. PERSONNEL VIEW: Clickable tasks to view details, attachments, history + rejected rework handling
   else if (role === "personnel") {
-    const myTasks = state.tickets.filter(t => t.assignedPersonnelId === state.currentUser.id || t.assignedPersonnelName.toLowerCase().includes(state.currentUser.displayName.toLowerCase()));
-    const todayTasks = myTasks.filter(t => t.requestedDueDate === todayDateStr || t.status === "assigned" || t.status === "in_progress");
+    const myTasks = state.tickets.filter(t => t.assignedPersonnelId === state.currentUser.id || (t.assignedPersonnelName && t.assignedPersonnelName.toLowerCase().includes(state.currentUser.displayName.toLowerCase())));
+    const rejectedTasks = myTasks.filter(t => t.status === "rejected");
+    // Ensure rejected tasks are ALWAYS included in today's active tasks!
+    const todayTasks = myTasks.filter(t => t.requestedDueDate === todayDateStr || t.status === "assigned" || t.status === "in_progress" || t.status === "rejected");
     const displayedTasks = state.todayOnlyTaskFilter ? todayTasks : myTasks;
 
     container.innerHTML = `
       <div class="page-header-bar">
         <div>
-          <h2 class="page-title">Personnel Tasks: ${state.currentUser.displayName}</h2>
-          <p class="text-sm text-muted">Assigned Queue &bull; Maximum allowable turnaround: <strong>72 Hours</strong></p>
+          <h2 class="page-title">Personnel Tasks: ${escapeHtml(state.currentUser.displayName)}</h2>
+          <p class="text-sm text-muted">Assigned Queue &bull; Click any task to inspect attachments and history &bull; Turnaround: <strong>72 Hours</strong></p>
         </div>
         <div style="display:flex; gap:0.5rem; align-items:center;">
           <button type="button" class="btn ${state.todayOnlyTaskFilter ? "btn-primary" : "btn-outline"} btn-sm js-toggle-personnel-today">
-            ${state.todayOnlyTaskFilter ? "&#10003; Showing: Tasks for Today" : "Show: Today's Tasks Only"}
+            ${state.todayOnlyTaskFilter ? "&#10003; Showing: Active & Today's Tasks" : "Show: Today's Tasks Only"}
           </button>
         </div>
       </div>
+
+      ${rejectedTasks.length > 0 ? `
+        <div class="action-needed-banner" style="background:#fef2f2; border:1px solid #fecaca; margin-bottom:1.25rem;">
+          <div style="display:flex; align-items:center; gap:0.75rem;">
+            <span class="pulse-indicator" style="background:var(--danger);"></span>
+            <div>
+              <strong style="color:var(--danger);">Rework Required: ${rejectedTasks.length} Task(s) Returned by Requester</strong>
+              <div class="text-xs" style="color:#7f1d1d;">Requester inspected the resolution and requested changes. Click the task to view feedback and submit rework proof.</div>
+            </div>
+          </div>
+        </div>
+      ` : ""}
 
       <div class="kpi-grid">
         <div class="kpi-card">
@@ -1064,11 +1159,11 @@ function renderDashboardUI() {
           <div class="kpi-value" style="color:var(--primary);">${todayTasks.filter(t => t.status !== "resolved").length}</div>
         </div>
         <div class="kpi-card">
-          <div class="kpi-label" style="color:var(--warning);">Active / In Progress</div>
-          <div class="kpi-value" style="color:var(--warning);">${myTasks.filter(t => t.status === "assigned" || t.status === "in_progress").length}</div>
+          <div class="kpi-label" style="color:var(--danger);">Rework Required (Rejected)</div>
+          <div class="kpi-value" style="color:var(--danger);">${rejectedTasks.length}</div>
         </div>
         <div class="kpi-card">
-          <div class="kpi-label" style="color:var(--purple);">Awaiting User Confirmation</div>
+          <div class="kpi-label" style="color:var(--purple);">Awaiting Confirmation</div>
           <div class="kpi-value" style="color:var(--purple);">${myTasks.filter(t => t.status === "pending_confirmation").length}</div>
         </div>
         <div class="kpi-card">
@@ -1081,7 +1176,7 @@ function renderDashboardUI() {
         <div class="card-header" style="display:flex; justify-content:space-between; align-items:center;">
           <div>
             <h3 class="section-title">My Assigned Tasks</h3>
-            <p class="text-xs text-muted">${state.todayOnlyTaskFilter ? "Filtered to active tasks due today" : "Showing all assigned tasks"}</p>
+            <p class="text-xs text-muted">Click any task row to view details, photos/attachments, and timeline history</p>
           </div>
           <span class="badge badge-neutral">${displayedTasks.length} Tasks</span>
         </div>
@@ -1103,28 +1198,31 @@ function renderDashboardUI() {
               ${displayedTasks.length === 0 ? `<tr><td colspan="8" style="text-align:center; padding:2rem;">No pending tasks in this view. You are all caught up!</td></tr>` :
                 displayedTasks.map(t => {
                   const sla = getTicketSlaInfo(t);
+                  const isRework = t.status === "rejected";
                   return `
-                    <tr>
+                    <tr class="clickable-row js-open-ticket-details" data-id="${t.id}" style="cursor:pointer; ${isRework ? "background:#fff5f5;" : ""}" title="Click to view full ticket details and attachments">
                       <td class="mono font-bold">${t.id}</td>
                       <td>${getPriorityBadge(t.priority)}</td>
                       <td><span class="badge badge-concern">${t.concernType}</span></td>
                       <td>
-                        <strong>${escapeHtml(t.title)}</strong>
-                        <div class="text-xs text-muted">${escapeHtml(t.branchName)}</div>
+                        <a href="javascript:void(0)" class="js-open-ticket-details" data-id="${t.id}" style="color:inherit; font-weight:700; text-decoration:none;">${escapeHtml(t.title)}</a>
+                        <div class="text-xs text-muted">${escapeHtml(t.branchName)} &bull; Req: ${escapeHtml(t.requesterName)}</div>
+                        ${isRework ? `<div class="text-xs" style="color:var(--danger); font-weight:700; margin-top:0.2rem;">⚠️ REWORK NOTE: "${escapeHtml(t.rejectionReason)}"</div>` : ""}
                       </td>
                       <td class="mono text-xs">${t.requestedDueDate || "ASAP"}</td>
                       <td><span class="sla-badge ${sla.badgeClass}">${sla.label}</span></td>
                       <td>${getStatusBadge(t.status)}</td>
-                      <td style="text-align:right;">
-                        ${(t.status === "assigned" || t.status === "in_progress" || t.status === "rejected") ? `
-                          <button type="button" class="btn btn-success btn-sm js-open-done-modal" data-id="${t.id}">
-                            ${ICONS.check} Mark Done
-                          </button>
-                        ` : `
-                          <button type="button" class="btn btn-outline btn-sm js-open-ticket-details" data-id="${t.id}">
+                      <td style="text-align:right;" onclick="event.stopPropagation();">
+                        <div style="display:flex; justify-content:flex-end; gap:0.35rem; align-items:center;">
+                          <button type="button" class="btn btn-outline btn-sm js-open-ticket-details" data-id="${t.id}" title="View Details, Attachments & History">
                             ${ICONS.view}
                           </button>
-                        `}
+                          ${(t.status === "assigned" || t.status === "in_progress" || isRework) ? `
+                            <button type="button" class="btn ${isRework ? "btn-danger" : "btn-success"} btn-sm js-open-done-modal" data-id="${t.id}" title="${isRework ? "Upload Rework Proof" : "Mark as Done"}">
+                              ${ICONS.check} ${isRework ? "Rework Done" : "Mark Done"}
+                            </button>
+                          ` : ""}
+                        </div>
                       </td>
                     </tr>
                   `;
@@ -1187,7 +1285,7 @@ function renderDashboardUI() {
         <div class="card-header" style="display:flex; justify-content:space-between; align-items:center;">
           <div>
             <h3 class="section-title">Active Tickets Summary</h3>
-            <p class="text-xs text-muted">Real-time status across all departments and locations</p>
+            <p class="text-xs text-muted">Real-time status across all departments &bull; Click any ticket to inspect details</p>
           </div>
           <span class="badge badge-neutral">${active.length} Active</span>
         </div>
@@ -1207,27 +1305,29 @@ function renderDashboardUI() {
               </tr>
             </thead>
             <tbody>
-              ${state.tickets.slice(0, 6).map(t => {
+              ${state.tickets.slice(0, 8).map(t => {
                 const sla = getTicketSlaInfo(t);
                 return `
-                  <tr>
+                  <tr class="clickable-row js-open-ticket-details" data-id="${t.id}" style="cursor:pointer;">
                     <td class="mono font-bold">${t.id}</td>
                     <td>${getPriorityBadge(t.priority)}</td>
                     <td><span class="badge badge-concern">${t.concernType}</span></td>
                     <td><strong>${escapeHtml(t.title)}</strong></td>
                     <td>${escapeHtml(t.branchName)}</td>
-                    <td>${escapeHtml(t.assignedPersonnelName || "Unassigned")}</td>
+                    <td>${escapeHtml(t.assignedPersonnelName || (t.assignedType === "external" ? "External Labor" : "Unassigned"))}</td>
                     <td><span class="sla-badge ${sla.badgeClass}">${sla.label}</span></td>
                     <td>${getStatusBadge(t.status)}</td>
-                    <td style="text-align:right;">
-                      <button type="button" class="btn btn-outline btn-sm js-open-ticket-details" data-id="${t.id}" title="View details">
-                        ${ICONS.view}
-                      </button>
-                      ${t.status === "submitted" ? `
-                        <button type="button" class="btn btn-primary btn-sm js-open-triage-modal" data-id="${t.id}" title="Triage">
-                          Triage
+                    <td style="text-align:right;" onclick="event.stopPropagation();">
+                      <div style="display:flex; justify-content:flex-end; gap:0.35rem;">
+                        <button type="button" class="btn btn-outline btn-sm js-open-ticket-details" data-id="${t.id}" title="View details">
+                          ${ICONS.view}
                         </button>
-                      ` : ""}
+                        ${t.status === "submitted" ? `
+                          <button type="button" class="btn btn-primary btn-sm js-open-triage-modal" data-id="${t.id}" title="Triage">
+                            Triage
+                          </button>
+                        ` : ""}
+                      </div>
                     </td>
                   </tr>
                 `;
@@ -1255,9 +1355,9 @@ function renderTicketsSection() {
 
   // Role visibility scoping
   if (state.currentUser.role === "requester") {
-    filtered = filtered.filter(t => t.requesterId === state.currentUser.id || t.requesterName.toLowerCase().includes(state.currentUser.displayName.toLowerCase()));
+    filtered = filtered.filter(t => t.requesterId === state.currentUser.id || (t.requesterName && t.requesterName.toLowerCase().includes(state.currentUser.displayName.toLowerCase())));
   } else if (state.currentUser.role === "personnel") {
-    filtered = filtered.filter(t => t.assignedPersonnelId === state.currentUser.id || t.assignedPersonnelName.toLowerCase().includes(state.currentUser.displayName.toLowerCase()));
+    filtered = filtered.filter(t => t.assignedPersonnelId === state.currentUser.id || (t.assignedPersonnelName && t.assignedPersonnelName.toLowerCase().includes(state.currentUser.displayName.toLowerCase())));
   }
 
   // Status Filter
@@ -1284,8 +1384,8 @@ function renderTicketsSection() {
     filtered = filtered.filter(t =>
       t.id.toLowerCase().includes(q) ||
       t.title.toLowerCase().includes(q) ||
-      t.requesterName.toLowerCase().includes(q) ||
-      t.branchName.toLowerCase().includes(q) ||
+      (t.requesterName && t.requesterName.toLowerCase().includes(q)) ||
+      (t.branchName && t.branchName.toLowerCase().includes(q)) ||
       (t.assignedPersonnelName && t.assignedPersonnelName.toLowerCase().includes(q))
     );
   }
@@ -1300,7 +1400,7 @@ function renderTicketsSection() {
   const kpiResolved = document.getElementById("kpi-resolved");
   if (kpiTotal) kpiTotal.textContent = state.tickets.length;
   if (kpiSub) kpiSub.textContent = state.tickets.filter(t => t.status === "submitted").length;
-  if (kpiInProg) kpiInProg.textContent = state.tickets.filter(t => t.status === "assigned" || t.status === "in_progress").length;
+  if (kpiInProg) kpiInProg.textContent = state.tickets.filter(t => t.status === "assigned" || t.status === "in_progress" || t.status === "rejected").length;
   if (kpiConfirm) kpiConfirm.textContent = state.tickets.filter(t => t.status === "pending_confirmation").length;
   if (kpiResolved) kpiResolved.textContent = state.tickets.filter(t => t.status === "resolved").length;
 
@@ -1318,50 +1418,114 @@ function renderTicketsSection() {
 
   if (emptyState) emptyState.classList.add("hidden");
 
-  tbody.innerHTML = filtered.map(t => {
-    const sla = getTicketSlaInfo(t);
-    return `
-      <tr class="clickable-row js-open-ticket-details" data-id="${t.id}">
-        <td class="mono font-bold">${t.id}</td>
-        <td>${getPriorityBadge(t.priority)}</td>
-        <td><span class="badge badge-concern">${t.concernType}</span></td>
-        <td>
-          <strong>${escapeHtml(t.title)}</strong>
-          <div class="text-xs text-muted">By: ${escapeHtml(t.requesterName)}</div>
-        </td>
-        <td class="text-xs">${escapeHtml(t.branchName)}</td>
-        <td class="text-xs">
-          ${t.assignedType === "external"
-            ? `<span class="badge badge-neutral" title="${escapeHtml(t.externalLaborDetails)}">EXT: ${escapeHtml(t.assignedPersonnelName || "Contractor")}</span>`
-            : escapeHtml(t.assignedPersonnelName || "Unassigned")}
-        </td>
-        <td><span class="sla-badge ${sla.badgeClass}">${sla.label}</span></td>
-        <td>${getStatusBadge(t.status)}</td>
-        <td style="text-align:right;" onclick="event.stopPropagation();">
-          <div style="display:flex; justify-content:flex-end; gap:0.35rem;">
-            <button type="button" class="btn btn-outline btn-sm js-open-ticket-details" data-id="${t.id}" title="View ticket timeline">
-              ${ICONS.view}
-            </button>
-            ${(state.currentUser.role === "headadmin" || state.currentUser.role === "superadmin") && t.status === "submitted" ? `
-              <button type="button" class="btn btn-primary btn-sm js-open-triage-modal" data-id="${t.id}" title="Triage ticket">
-                Triage
+  const thead = document.getElementById("tickets-table-thead");
+  const isRequester = state.currentUser.role === "requester";
+
+  if (thead) {
+    if (isRequester) {
+      thead.innerHTML = `
+        <tr>
+          <th style="min-width:105px;">Ticket ID</th>
+          <th style="min-width:140px;">Concern Type</th>
+          <th style="min-width:180px;">Title</th>
+          <th style="min-width:130px;">SLA Elapsed</th>
+          <th style="min-width:130px;">Status</th>
+          <th style="text-align:right; min-width:120px;">Actions</th>
+        </tr>
+      `;
+    } else {
+      thead.innerHTML = `
+        <tr>
+          <th style="min-width:110px;">Ticket ID</th>
+          <th style="min-width:90px;">Priority</th>
+          <th style="min-width:140px;">Concern Type</th>
+          <th style="min-width:220px;">Title &amp; Requester</th>
+          <th style="min-width:160px;">Branch / Location</th>
+          <th style="min-width:160px;">Assigned Personnel</th>
+          <th style="min-width:160px;">SLA &amp; Elapsed Time</th>
+          <th style="min-width:140px;">Status</th>
+          <th style="text-align:right; min-width:130px;">Actions</th>
+        </tr>
+      `;
+    }
+  }
+
+  if (isRequester) {
+    tbody.innerHTML = filtered.map(t => {
+      const sla = getTicketSlaInfo(t);
+      const icon = getConcernIcon(t.concernType);
+      return `
+        <tr class="clickable-row js-open-ticket-details" data-id="${t.id}" style="cursor:pointer;" title="Click row to view ticket details">
+          <td class="mono font-bold">${t.id}</td>
+          <td><span class="badge badge-concern">${icon} ${escapeHtml(t.concernType)}</span></td>
+          <td>
+            <a href="javascript:void(0)" class="js-open-ticket-details" data-id="${t.id}" style="color:inherit; font-weight:700; text-decoration:none;">${escapeHtml(t.title)}</a>
+            ${t.status === "rejected" ? `<div class="text-xs" style="color:var(--danger); font-weight:600;">⚠️ Returned: "${escapeHtml(t.rejectionReason)}"</div>` : ""}
+          </td>
+          <td><span class="sla-badge ${sla.badgeClass}">${sla.label}</span></td>
+          <td>${getStatusBadge(t.status)}</td>
+          <td style="text-align:right;" onclick="event.stopPropagation();">
+            <div style="display:flex; justify-content:flex-end; gap:0.4rem; align-items:center;">
+              <button type="button" class="btn btn-outline btn-sm js-open-ticket-details" data-id="${t.id}" style="font-weight:700;">
+                🔍 View
               </button>
-            ` : ""}
-            ${(state.currentUser.role === "personnel" || state.currentUser.role === "superadmin") && (t.status === "assigned" || t.status === "in_progress") ? `
-              <button type="button" class="btn btn-success btn-sm js-open-done-modal" data-id="${t.id}" title="Mark as Done">
-                ${ICONS.check}
+              ${t.status === "pending_confirmation" ? `
+                <button type="button" class="btn btn-success btn-sm js-open-confirm-modal" data-id="${t.id}" style="font-weight:700;">
+                  Verify
+                </button>
+              ` : ""}
+            </div>
+          </td>
+        </tr>
+      `;
+    }).join("");
+  } else {
+    tbody.innerHTML = filtered.map(t => {
+      const sla = getTicketSlaInfo(t);
+      return `
+        <tr class="clickable-row js-open-ticket-details" data-id="${t.id}" style="cursor:pointer;" title="Click row to view ticket details">
+          <td class="mono font-bold">${t.id}</td>
+          <td>${getPriorityBadge(t.priority)}</td>
+          <td><span class="badge badge-concern">${t.concernType}</span></td>
+          <td>
+            <a href="javascript:void(0)" class="js-open-ticket-details" data-id="${t.id}" style="color:inherit; font-weight:700; text-decoration:none;">${escapeHtml(t.title)}</a>
+            <div class="text-xs text-muted">By: ${escapeHtml(t.requesterName)}</div>
+            ${t.status === "rejected" ? `<div class="text-xs" style="color:var(--danger); font-weight:600;">⚠️ Returned for rework: "${escapeHtml(t.rejectionReason)}"</div>` : ""}
+          </td>
+          <td class="text-xs">${escapeHtml(t.branchName)}</td>
+          <td class="text-xs">
+            ${t.assignedType === "external"
+              ? `<span class="badge badge-neutral" title="${escapeHtml(t.externalLaborDetails)}">EXT: ${escapeHtml(t.assignedPersonnelName || "Contractor")}</span>`
+              : escapeHtml(t.assignedPersonnelName || "Unassigned")}
+          </td>
+          <td><span class="sla-badge ${sla.badgeClass}">${sla.label}</span></td>
+          <td>${getStatusBadge(t.status)}</td>
+          <td style="text-align:right;" onclick="event.stopPropagation();">
+            <div style="display:flex; justify-content:flex-end; gap:0.35rem;">
+              <button type="button" class="btn btn-outline btn-sm js-open-ticket-details" data-id="${t.id}" title="View details, attachments & history">
+                🔍 View
               </button>
-            ` : ""}
-            ${(state.currentUser.role === "requester" || state.currentUser.role === "superadmin") && t.status === "pending_confirmation" ? `
-              <button type="button" class="btn btn-success btn-sm js-open-confirm-modal" data-id="${t.id}" title="Confirm Resolution">
-                Verify
-              </button>
-            ` : ""}
-          </div>
-        </td>
-      </tr>
-    `;
-  }).join("");
+              ${(state.currentUser.role === "headadmin" || state.currentUser.role === "superadmin") && t.status === "submitted" ? `
+                <button type="button" class="btn btn-primary btn-sm js-open-triage-modal" data-id="${t.id}" title="Triage ticket">
+                  Triage
+                </button>
+              ` : ""}
+              ${(state.currentUser.role === "personnel" || state.currentUser.role === "superadmin") && (t.status === "assigned" || t.status === "in_progress" || t.status === "rejected") ? `
+                <button type="button" class="btn btn-success btn-sm js-open-done-modal" data-id="${t.id}" title="Mark Done">
+                  ${ICONS.check}
+                </button>
+              ` : ""}
+              ${(state.currentUser.role === "requester" || state.currentUser.role === "superadmin") && t.status === "pending_confirmation" ? `
+                <button type="button" class="btn btn-success btn-sm js-open-confirm-modal" data-id="${t.id}" title="Confirm Resolution">
+                  Verify
+                </button>
+              ` : ""}
+            </div>
+          </td>
+        </tr>
+      `;
+    }).join("");
+  }
 
   attachDynamicActionListeners();
 }
@@ -1452,7 +1616,7 @@ function renderReportingDashboard() {
       groups[key].total++;
       if (t.status === "resolved") groups[key].resolved++;
       if (t.status === "pending_confirmation") groups[key].pending++;
-      if (t.status === "assigned" || t.status === "in_progress") groups[key].inProgress++;
+      if (t.status === "assigned" || t.status === "in_progress" || t.status === "rejected") groups[key].inProgress++;
       if (getTicketSlaInfo(t).isBreached) groups[key].breached++;
     });
 
@@ -1515,6 +1679,7 @@ function exportReportsToCsv() {
     "Description",
     "Branch Location",
     "Requester Name",
+    "Requester Email",
     "Contact Phone",
     "Priority",
     "Status",
@@ -1536,6 +1701,7 @@ function exportReportsToCsv() {
       `"${(t.description || "").replace(/"/g, '""')}"`,
       `"${(t.branchName || "").replace(/"/g, '""')}"`,
       `"${(t.requesterName || "").replace(/"/g, '""')}"`,
+      `"${(t.requesterEmail || "")}"`,
       `"${(t.contactNumber || "")}"`,
       t.priority || "medium",
       t.status || "submitted",
@@ -1639,6 +1805,7 @@ function renderUsersSection() {
     list = list.filter(u =>
       u.displayName.toLowerCase().includes(q) ||
       u.username.toLowerCase().includes(q) ||
+      (u.email && u.email.toLowerCase().includes(q)) ||
       (u.phone && u.phone.includes(q)) ||
       (u.branchName && u.branchName.toLowerCase().includes(q))
     );
@@ -1647,10 +1814,14 @@ function renderUsersSection() {
   if (countBadge) countBadge.textContent = `${list.length} Users`;
 
   // Update counters
-  document.getElementById("kpi-users-total").textContent = state.users.length;
-  document.getElementById("kpi-users-stores").textContent = state.users.filter(u => u.role === "requester").length;
-  document.getElementById("kpi-users-fixers").textContent = state.users.filter(u => u.role === "personnel").length;
-  document.getElementById("kpi-users-admins").textContent = state.users.filter(u => u.role === "headadmin" || u.role === "superadmin").length;
+  const cntTotal = document.getElementById("kpi-users-total");
+  const cntStores = document.getElementById("kpi-users-stores");
+  const cntFixers = document.getElementById("kpi-users-fixers");
+  const cntAdmins = document.getElementById("kpi-users-admins");
+  if (cntTotal) cntTotal.textContent = state.users.length;
+  if (cntStores) cntStores.textContent = state.users.filter(u => u.role === "requester").length;
+  if (cntFixers) cntFixers.textContent = state.users.filter(u => u.role === "personnel").length;
+  if (cntAdmins) cntAdmins.textContent = state.users.filter(u => u.role === "headadmin" || u.role === "superadmin").length;
 
   const pillAll = document.getElementById("pill-cnt-all");
   const pillStore = document.getElementById("pill-cnt-store");
@@ -1675,7 +1846,7 @@ function renderUsersSection() {
         <td>${roleBadges[u.role] || u.role}</td>
         <td>
           <strong>${escapeHtml(u.displayName)}</strong>
-          <div class="mono text-xs text-muted">@${u.username} &bull; PW: ${u.password}</div>
+          <div class="mono text-xs text-muted">@${u.username} &bull; ${escapeHtml(u.email || "no-email")}</div>
         </td>
         <td>
           <div>${escapeHtml(u.branchName || "All Branches")}</div>
@@ -1723,32 +1894,35 @@ function renderUsersSection() {
 /* ==========================================================================
    11. MODAL DIALOG CONTROLS & LIFECYCLE ACTIONS
    ========================================================================== */
+function setSubmitModalStep(step) {
+  const step1 = document.getElementById("submit-step-photo");
+  const step2 = document.getElementById("submit-step-details");
+  const title = document.getElementById("submit-ticket-title");
+
+  if (step === 1) {
+    step1?.classList.remove("hidden");
+    step2?.classList.add("hidden");
+    if (title) title.textContent = "Report Issue • Step 1: Take Photo";
+  } else {
+    step1?.classList.add("hidden");
+    step2?.classList.remove("hidden");
+    if (title) title.textContent = "Report Issue • Step 2: Details";
+  }
+}
+
 function openSubmitTicketModal() {
   const dialog = document.getElementById("dialog-submit-ticket");
   if (!dialog) return;
 
-  // Pre-populate employee list
-  const reqSelect = document.getElementById("ticket-requester-select");
-  if (reqSelect) {
-    reqSelect.innerHTML = `<option value="" disabled selected>Select employee...</option>` +
-      PREPOPULATED_EMPLOYEES.map(e => `
-        <option value="${escapeHtml(e.name)}" data-phone="${e.phone}" data-branch="${e.branchId}">
-          ${escapeHtml(e.name)} — ${escapeHtml(e.department)} (${escapeHtml(e.branchName)})
-        </option>
-      `).join("");
+  setSubmitModalStep(1);
 
-    // If current user is requester, auto-select them
-    if (state.currentUser.role === "requester") {
-      const match = PREPOPULATED_EMPLOYEES.find(e => e.name.toLowerCase() === state.currentUser.displayName.toLowerCase());
-      if (match) {
-        reqSelect.value = match.name;
-        document.getElementById("ticket-contact-phone").value = match.phone;
-      }
-    }
-  }
-
-  // Pre-populate branches dropdown
+  const container = document.getElementById("requester-field-container");
+  const emailInput = document.getElementById("ticket-contact-email");
+  const phoneInput = document.getElementById("ticket-contact-phone");
   const branchSelect = document.getElementById("ticket-branch-select");
+  const dueInput = document.getElementById("ticket-due-date");
+
+  // Populate branches dropdown
   if (branchSelect) {
     branchSelect.innerHTML = state.stores.map(s => `
       <option value="${s.id}" ${state.currentUser.branchId === s.id ? "selected" : ""}>
@@ -1757,11 +1931,115 @@ function openSubmitTicketModal() {
     `).join("");
   }
 
+  // AUTO-POPULATION LOGIC:
+  // If logged in user is a Requester (Employee):
+  // All profile & branch details are 100% automated — completely hidden so form is fast and short!
+  const adminSection = document.getElementById("ticket-admin-employee-selector");
+  const autoBadge = document.getElementById("requester-auto-profile-badge");
+  const badgeName = document.getElementById("badge-requester-name");
+  const badgeBranch = document.getElementById("badge-requester-branch");
+
+  if (state.currentUser.role === "requester") {
+    // 1. Show compact 1-line badge at the top
+    if (autoBadge) {
+      autoBadge.classList.remove("hidden");
+      if (badgeName) badgeName.textContent = state.currentUser.displayName;
+      if (badgeBranch) badgeBranch.textContent = state.currentUser.branchName || "Main Branch";
+    }
+
+    // 2. Hide the entire long employee input block
+    if (adminSection) {
+      adminSection.classList.add("hidden");
+    }
+
+    // 3. Populate all values behind the scenes and remove HTML5 required checks
+    if (container) {
+      container.innerHTML = `
+        <input type="text" id="ticket-requester-name" name="requester_name" class="form-input"
+          value="${escapeHtml(state.currentUser.displayName)}" readonly />
+      `;
+    }
+    if (emailInput) {
+      emailInput.value = state.currentUser.email || `${state.currentUser.username}@successo.ph`;
+      emailInput.removeAttribute("required");
+    }
+    if (phoneInput) {
+      phoneInput.value = state.currentUser.phone || "+639170000000";
+      phoneInput.removeAttribute("required");
+    }
+    if (branchSelect && state.currentUser.branchId) {
+      branchSelect.value = state.currentUser.branchId;
+      branchSelect.removeAttribute("required");
+    }
+    if (dueInput) {
+      dueInput.value = todayDateStr;
+      dueInput.removeAttribute("required");
+    }
+  }
+  // If Head Admin / Superadmin is creating on behalf of an employee:
+  else {
+    if (autoBadge) {
+      autoBadge.classList.add("hidden");
+    }
+    if (adminSection) {
+      adminSection.classList.remove("hidden");
+    }
+
+    // List all employees in DB
+    const employeeList = state.users.filter(u => u.role === "requester");
+    const activeList = employeeList.length > 0 ? employeeList : state.users;
+
+    if (container) {
+      container.innerHTML = `
+        <select id="ticket-requester-select" name="requester_name" class="form-select" required>
+          <option value="" disabled selected>Select employee from database...</option>
+          ${activeList.map(e => `
+            <option value="${escapeHtml(e.displayName)}" data-phone="${e.phone || ""}" data-email="${e.email || ""}" data-branch="${e.branchId || ""}">
+              ${escapeHtml(e.displayName)} — ${escapeHtml(e.department || e.role)} (${escapeHtml(e.branchName || "Main")})
+            </option>
+          `).join("")}
+        </select>
+      `;
+
+      const reqSelect = document.getElementById("ticket-requester-select");
+      reqSelect?.addEventListener("change", (e) => {
+        const opt = reqSelect.options[reqSelect.selectedIndex];
+        if (opt) {
+          if (emailInput) emailInput.value = opt.dataset.email || "";
+          if (phoneInput) phoneInput.value = opt.dataset.phone || "";
+          if (branchSelect && opt.dataset.branch) branchSelect.value = opt.dataset.branch;
+        }
+      });
+    }
+
+    if (emailInput) {
+      emailInput.value = "";
+      emailInput.setAttribute("required", "required");
+    }
+    if (phoneInput) {
+      phoneInput.value = "";
+      phoneInput.setAttribute("required", "required");
+    }
+    if (branchSelect) {
+      branchSelect.setAttribute("required", "required");
+    }
+    if (dueInput) {
+      dueInput.value = todayDateStr;
+      dueInput.setAttribute("required", "required");
+    }
+  }
+
   // Set default due date to tomorrow or today
-  const dueInput = document.getElementById("ticket-due-date");
   if (dueInput && !dueInput.value) {
     dueInput.value = todayDateStr;
   }
+
+  // Reset any pending photo
+  state.pendingReportPhotoBlob = null;
+  state.pendingReportPhotoDataUrl = "";
+  document.getElementById("report-photo-preview-wrap")?.classList.add("hidden");
+  const hint = document.getElementById("report-upload-hint");
+  if (hint) hint.textContent = "Photos or documents are stored securely in Telegram bot and linked in Firebase.";
 
   dialog.showModal();
 }
@@ -1774,13 +2052,17 @@ function openTriageModal(ticketId) {
   document.getElementById("triage-ticket-id").value = ticket.id;
   document.getElementById("triage-modal-subtitle").textContent = `${ticket.id} • ${ticket.branchName}`;
 
+  const sla = getTicketSlaInfo(ticket);
   const infoBox = document.getElementById("triage-info-box");
   if (infoBox) {
     infoBox.innerHTML = `
-      <div><strong>Title:</strong> ${escapeHtml(ticket.title)}</div>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.4rem;">
+        <div><strong>Title:</strong> ${escapeHtml(ticket.title)}</div>
+        <span class="sla-badge ${sla.badgeClass}">${sla.label}</span>
+      </div>
       <div><strong>Concern Type:</strong> ${escapeHtml(ticket.concernType)}</div>
-      <div><strong>Requester:</strong> ${escapeHtml(ticket.requesterName)} (${ticket.contactNumber})</div>
-      <div><strong>Reported:</strong> ${formatDateStr(ticket.reportedAt)}</div>
+      <div><strong>Requester:</strong> ${escapeHtml(ticket.requesterName)} (${ticket.contactNumber} &bull; ${escapeHtml(ticket.requesterEmail || "—")})</div>
+      <div><strong>Posted:</strong> ${formatDateStr(ticket.reportedAt)} (${sla.elapsedHours.toFixed(1)} hours ago)</div>
     `;
   }
 
@@ -1803,6 +2085,29 @@ function openDoneModal(ticketId) {
   const dialog = document.getElementById("dialog-personnel-done");
   document.getElementById("done-ticket-id").value = ticket.id;
   document.getElementById("done-modal-subtitle").textContent = `${ticket.id} • ${ticket.title}`;
+
+  // If this task was rejected, display the rework alert feedback!
+  const reworkAlert = document.getElementById("done-rework-alert");
+  if (reworkAlert) {
+    if (ticket.status === "rejected" && ticket.rejectionReason) {
+      reworkAlert.classList.remove("hidden");
+      reworkAlert.innerHTML = `
+        <div style="font-weight:700; margin-bottom:0.25rem;">⚠️ Requester Returned This Task For Rework:</div>
+        <div style="font-style:italic;">"${escapeHtml(ticket.rejectionReason)}"</div>
+        <div class="text-xs" style="margin-top:0.35rem; opacity:0.85;">Please address the issue, upload new proof, and mark done.</div>
+      `;
+    } else {
+      reworkAlert.classList.add("hidden");
+    }
+  }
+
+  // Reset proof upload state
+  state.pendingFixPhotoBlob = null;
+  state.pendingFixPhotoDataUrl = "";
+  document.getElementById("fix-photo-preview-wrap")?.classList.add("hidden");
+  const hint = document.getElementById("fix-upload-hint");
+  if (hint) hint.textContent = "Take a live photo of the repaired equipment or upload proof from files.";
+
   dialog?.showModal();
 }
 
@@ -1857,6 +2162,7 @@ function openConfirmModal(ticketId) {
   const rejectInput = document.getElementById("rejection-reason-input");
 
   rejectGroup.style.display = "none";
+  btnToggleReject.textContent = "Reject (Needs Rework)";
   if (rejectInput) rejectInput.value = "";
 
   btnConfirm.onclick = async () => {
@@ -1871,18 +2177,19 @@ function openConfirmModal(ticketId) {
   btnToggleReject.onclick = async () => {
     if (rejectGroup.style.display === "none") {
       rejectGroup.style.display = "block";
-      btnToggleReject.textContent = "Submit Rejection & Send Back";
+      btnToggleReject.textContent = "Confirm Rejection & Send Back";
     } else {
       const reason = rejectInput.value.trim();
       if (!reason) {
-        showToast("Please enter a reason for rejection.", "danger");
+        showToast("Please enter a reason explaining what is still broken.", "danger");
         return;
       }
       ticket.status = "rejected";
       ticket.rejectionReason = reason;
+      ticket.rejectedAt = new Date().toISOString();
       await persistTicket(ticket);
       dialog.close();
-      showToast("Ticket rejected and sent back to personnel for rework.", "info");
+      showToast(`Ticket ${ticket.id} returned to assigned personnel for rework.`, "info");
       renderAllViews();
     }
   };
@@ -1890,16 +2197,25 @@ function openConfirmModal(ticketId) {
   dialog?.showModal();
 }
 
+/**
+ * Universally accessible Ticket Details Modal for ALL ROLES (Requester, Personnel, Head Admin, Superadmin)
+ */
 function openTicketDetailsModal(ticketId) {
   const ticket = state.tickets.find(t => t.id === ticketId);
   if (!ticket) return;
 
   const dialog = document.getElementById("dialog-ticket-details");
-  document.getElementById("ticket-modal-id").textContent = ticket.id;
-  document.getElementById("ticket-modal-subtitle").textContent = `${ticket.branchName} • Due: ${ticket.requestedDueDate || "ASAP"}`;
+  if (!dialog) return;
 
+  document.getElementById("ticket-modal-id").textContent = ticket.id;
+  document.getElementById("ticket-modal-subtitle").textContent = `${ticket.branchName} • Target Due: ${ticket.requestedDueDate || "ASAP"}`;
+
+  // Update badges cleanly without destroying their IDs
   const prioBadge = document.getElementById("ticket-modal-prio-badge");
-  if (prioBadge) prioBadge.outerHTML = getPriorityBadge(ticket.priority);
+  if (prioBadge) {
+    prioBadge.className = `badge ${getPriorityBadgeClass(ticket.priority)}`;
+    prioBadge.textContent = (ticket.priority || "MEDIUM").toUpperCase();
+  }
 
   const sla = getTicketSlaInfo(ticket);
   const slaBadge = document.getElementById("ticket-modal-sla-badge");
@@ -1909,7 +2225,10 @@ function openTicketDetailsModal(ticketId) {
   }
 
   const statusBadge = document.getElementById("ticket-modal-status-badge");
-  if (statusBadge) statusBadge.outerHTML = getStatusBadge(ticket.status);
+  if (statusBadge) {
+    statusBadge.className = `badge ${getStatusBadgeClass(ticket.status)}`;
+    statusBadge.textContent = getStatusBadgeText(ticket.status);
+  }
 
   const modalBody = document.getElementById("ticket-modal-body");
   const issuePhoto = ticket.attachments?.[0]?.url || "";
@@ -1919,68 +2238,151 @@ function openTicketDetailsModal(ticketId) {
     modalBody.innerHTML = `
       <div style="background:var(--bg-muted); padding:1rem; border-radius:var(--radius-md);">
         <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:1rem; flex-wrap:wrap;">
-          <div>
+          <div style="flex:1; min-width:240px;">
             <span class="badge badge-concern" style="margin-bottom:0.35rem;">${ticket.concernType}</span>
-            <h4 style="font-size:1.1rem; font-weight:800; margin:0 0 0.35rem 0;">${escapeHtml(ticket.title)}</h4>
-            <p style="margin:0; font-size:0.875rem; color:var(--text-secondary);">${escapeHtml(ticket.description)}</p>
+            <h4 style="font-size:1.15rem; font-weight:800; margin:0 0 0.4rem 0;">${escapeHtml(ticket.title)}</h4>
+            <p style="margin:0; font-size:0.875rem; color:var(--text-secondary); white-space:pre-wrap;">${escapeHtml(ticket.description)}</p>
           </div>
-          <div style="text-align:right;">
-            <div class="text-xs text-muted">Reported by</div>
-            <strong>${escapeHtml(ticket.requesterName)}</strong>
-            <div class="mono text-xs">${ticket.contactNumber}</div>
+          <div style="text-align:right; min-width:180px; font-size:0.8125rem;">
+            <div class="text-xs text-muted">Submitted By</div>
+            <strong style="font-size:0.95rem;">${escapeHtml(ticket.requesterName)}</strong>
+            <div class="mono">${ticket.contactNumber || "—"}</div>
+            <div class="mono text-muted text-xs">${escapeHtml(ticket.requesterEmail || "—")}</div>
+            <div class="text-muted" style="margin-top:0.25rem;">${escapeHtml(ticket.branchName)}</div>
           </div>
         </div>
       </div>
 
-      <div class="report-images-row ${proofPhoto ? "has-two" : ""}">
-        <div class="report-image-col">
-          <div class="report-image-col-header">
-            <span>Issue Photo (Reported by Requester)</span>
-            <span class="badge badge-neutral">ATTACHMENT</span>
-          </div>
-          <div class="report-image-box">
-            ${issuePhoto ? `<img src="${issuePhoto}" alt="Issue photo" class="js-lightbox-trigger" data-src="${issuePhoto}" style="cursor:pointer;" />` : `<div style="padding:2.5rem; text-align:center;">No image attached</div>`}
-          </div>
-        </div>
-        ${proofPhoto ? `
+      <!-- Attachments Section (Visible to Requester, Personnel, Admins) -->
+      <div>
+        <h4 style="font-size:0.85rem; font-weight:700; text-transform:uppercase; margin-bottom:0.5rem; color:var(--text-secondary);">
+          Visual Evidence &amp; Attachments
+        </h4>
+        <div class="report-images-row ${proofPhoto ? "has-two" : ""}">
           <div class="report-image-col">
             <div class="report-image-col-header">
-              <span>Resolution Proof (By Personnel)</span>
-              <span class="badge badge-success">COMPLETED</span>
+              <span>Reported Issue Attachment</span>
+              <span class="badge badge-neutral">INITIAL ISSUE</span>
             </div>
             <div class="report-image-box">
-              <img src="${proofPhoto}" alt="Proof photo" class="js-lightbox-trigger" data-src="${proofPhoto}" style="cursor:pointer;" />
+              ${issuePhoto ? `<img src="${issuePhoto}" alt="Issue photo" class="js-lightbox-trigger" data-src="${issuePhoto}" style="cursor:pointer;" title="Tap to expand in full view" />` : `<div style="padding:2.5rem; text-align:center; color:var(--text-muted);">No image attached</div>`}
             </div>
           </div>
-        ` : ""}
+          ${proofPhoto ? `
+            <div class="report-image-col">
+              <div class="report-image-col-header">
+                <span>Personnel Resolution Proof</span>
+                <span class="badge badge-success">COMPLETED FIX</span>
+              </div>
+              <div class="report-image-box">
+                <img src="${proofPhoto}" alt="Proof photo" class="js-lightbox-trigger" data-src="${proofPhoto}" style="cursor:pointer;" title="Tap to expand in full view" />
+              </div>
+            </div>
+          ` : ""}
+        </div>
       </div>
 
-      <!-- Lifecycle Timeline Stepper -->
+      <!-- Personnel Completion Notes (If Available) -->
+      ${ticket.doneNotes ? `
+        <div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:var(--radius-md); padding:0.875rem;">
+          <div style="font-weight:700; color:#166534; margin-bottom:0.25rem;">Personnel Work Accomplished Notes:</div>
+          <p style="margin:0; font-size:0.875rem; color:#14532d;">${escapeHtml(ticket.doneNotes)}</p>
+          <div class="text-xs mono" style="margin-top:0.35rem; color:#166534;">Completed at: ${formatDateStr(ticket.doneAt)}</div>
+        </div>
+      ` : ""}
+
+      <!-- Rejection Feedback (If Rejected) -->
+      ${ticket.rejectionReason ? `
+        <div style="background:#fef2f2; border:1px solid #fecaca; border-radius:var(--radius-md); padding:0.875rem;">
+          <div style="font-weight:700; color:#991b1b; margin-bottom:0.25rem;">⚠️ Requester Rejection Feedback (Rework Required):</div>
+          <p style="margin:0; font-size:0.875rem; color:#7f1d1d;">"${escapeHtml(ticket.rejectionReason)}"</p>
+          <div class="text-xs mono" style="margin-top:0.35rem; color:#991b1b;">Returned on: ${formatDateStr(ticket.rejectedAt || ticket.triagedAt)}</div>
+        </div>
+      ` : ""}
+
+      <!-- Full Lifecycle Timeline & History -->
       <div style="background:var(--bg-surface); border:1px solid var(--border-color); border-radius:var(--radius-md); padding:1rem;">
-        <h4 style="font-size:0.85rem; font-weight:700; text-transform:uppercase; margin-bottom:0.75rem; color:var(--text-secondary);">Lifecycle Audit Trail</h4>
+        <h4 style="font-size:0.85rem; font-weight:700; text-transform:uppercase; margin-bottom:0.75rem; color:var(--text-secondary);">End-to-End Lifecycle History</h4>
         <div style="display:flex; flex-direction:column; gap:0.65rem; font-size:0.8125rem;">
-          <div style="display:flex; align-items:center; gap:0.5rem;">
+          <div style="display:flex; align-items:flex-start; gap:0.5rem;">
             <span style="color:var(--success); font-weight:700;">&#10003; 1. Submitted:</span>
-            <span>By ${escapeHtml(ticket.requesterName)} at ${formatDateStr(ticket.reportedAt)}</span>
+            <span>By <strong>${escapeHtml(ticket.requesterName)}</strong> on ${formatDateStr(ticket.reportedAt)}</span>
           </div>
-          <div style="display:flex; align-items:center; gap:0.5rem;">
+          <div style="display:flex; align-items:flex-start; gap:0.5rem;">
             <span style="${ticket.triagedAt ? "color:var(--success); font-weight:700;" : "color:var(--text-muted);"}">${ticket.triagedAt ? "&#10003;" : "&bull;"} 2. Triaged &amp; Assigned:</span>
-            <span>${ticket.triagedAt ? `Assigned to ${escapeHtml(ticket.assignedPersonnelName || "External")} on ${formatDateStr(ticket.triagedAt)}` : "Awaiting triage by Head Admin"}</span>
+            <span>${ticket.triagedAt ? `Priority set to <strong>${ticket.priority.toUpperCase()}</strong> &bull; Assigned to <strong>${escapeHtml(ticket.assignedPersonnelName || "External Contractor")}</strong> on ${formatDateStr(ticket.triagedAt)}` : "Awaiting triage by Head Admin"}</span>
           </div>
-          <div style="display:flex; align-items:center; gap:0.5rem;">
+          <div style="display:flex; align-items:flex-start; gap:0.5rem;">
             <span style="${ticket.doneAt ? "color:var(--success); font-weight:700;" : "color:var(--text-muted);"}">${ticket.doneAt ? "&#10003;" : "&bull;"} 3. Personnel Execution:</span>
-            <span>${ticket.doneAt ? `Completed on ${formatDateStr(ticket.doneAt)} — "${escapeHtml(ticket.doneNotes)}"` : "Pending completion by assigned personnel"}</span>
+            <span>${ticket.doneAt ? `Work finished on ${formatDateStr(ticket.doneAt)} with proof uploaded` : (ticket.status === "rejected" ? `<strong style="color:var(--danger);">Rework in progress by ${escapeHtml(ticket.assignedPersonnelName || "Personnel")}</strong>` : "Personnel currently working on resolution")}</span>
           </div>
-          <div style="display:flex; align-items:center; gap:0.5rem;">
-            <span style="${ticket.resolvedAt ? "color:var(--success); font-weight:700;" : "color:var(--text-muted);"}">${ticket.resolvedAt ? "&#10003;" : "&bull;"} 4. Requester Verification:</span>
-            <span>${ticket.resolvedAt ? `Officially confirmed and closed on ${formatDateStr(ticket.resolvedAt)}` : (ticket.rejectionReason ? `Rejected: "${escapeHtml(ticket.rejectionReason)}"` : "Pending final requester sign-off")}</span>
+          <div style="display:flex; align-items:flex-start; gap:0.5rem;">
+            <span style="${ticket.resolvedAt ? "color:var(--success); font-weight:700;" : (ticket.status === "rejected" ? "color:var(--danger); font-weight:700;" : "color:var(--text-muted);")}">${ticket.resolvedAt ? "&#10003;" : (ticket.status === "rejected" ? "⚠️" : "&bull;")} 4. Final Requester Verification:</span>
+            <span>${ticket.resolvedAt ? `Officially confirmed and closed on ${formatDateStr(ticket.resolvedAt)}` : (ticket.status === "rejected" ? `Rejected by requester for rework: "${escapeHtml(ticket.rejectionReason)}"` : "Pending final verification by requester")}</span>
           </div>
         </div>
       </div>
     `;
   }
 
-  // Add lightbox triggers
+  // Footer context actions based on role
+  const footer = document.getElementById("ticket-modal-footer");
+  if (footer) {
+    let actionButtons = "";
+
+    // If Requester and ticket is pending confirmation:
+    if ((state.currentUser.role === "requester" || state.currentUser.role === "superadmin") && ticket.status === "pending_confirmation") {
+      actionButtons = `
+        <button type="button" class="btn btn-success js-modal-action-confirm" data-id="${ticket.id}">
+          &#10003; Confirm Resolution / Close Ticket
+        </button>
+      `;
+    }
+    // If Personnel and ticket is active/rejected:
+    else if ((state.currentUser.role === "personnel" || state.currentUser.role === "superadmin") && (ticket.status === "assigned" || ticket.status === "in_progress" || ticket.status === "rejected")) {
+      actionButtons = `
+        <button type="button" class="btn btn-success js-modal-action-done" data-id="${ticket.id}">
+          ${ICONS.check} Mark as Done / Upload Proof
+        </button>
+      `;
+    }
+    // If Head Admin and ticket is submitted:
+    else if ((state.currentUser.role === "headadmin" || state.currentUser.role === "superadmin") && ticket.status === "submitted") {
+      actionButtons = `
+        <button type="button" class="btn btn-primary js-modal-action-triage" data-id="${ticket.id}">
+          Triage &amp; Assign Ticket
+        </button>
+      `;
+    }
+
+    footer.innerHTML = `
+      <div style="display:flex; justify-content:space-between; align-items:center; width:100%; gap:0.5rem; flex-wrap:wrap;">
+        <button type="button" class="btn btn-outline js-close-dialog" data-dialog="dialog-ticket-details">Close Details</button>
+        <div>${actionButtons}</div>
+      </div>
+    `;
+
+    footer.querySelector(".js-modal-action-confirm")?.addEventListener("click", () => {
+      dialog.close();
+      openConfirmModal(ticket.id);
+    });
+
+    footer.querySelector(".js-modal-action-done")?.addEventListener("click", () => {
+      dialog.close();
+      openDoneModal(ticket.id);
+    });
+
+    footer.querySelector(".js-modal-action-triage")?.addEventListener("click", () => {
+      dialog.close();
+      openTriageModal(ticket.id);
+    });
+
+    footer.querySelector(".js-close-dialog")?.addEventListener("click", () => {
+      dialog.close();
+    });
+  }
+
+  // Lightbox trigger binding
   modalBody?.querySelectorAll(".js-lightbox-trigger").forEach(img => {
     img.addEventListener("click", () => {
       const lb = document.getElementById("dialog-lightbox");
@@ -1992,24 +2394,39 @@ function openTicketDetailsModal(ticketId) {
     });
   });
 
-  dialog?.showModal();
+  dialog.showModal();
 }
 
 function attachDynamicActionListeners() {
   document.querySelectorAll(".js-open-ticket-details").forEach(btn => {
-    btn.onclick = () => openTicketDetailsModal(btn.dataset.id);
+    btn.onclick = (e) => {
+      e.stopPropagation();
+      openTicketDetailsModal(btn.dataset.id);
+    };
   });
   document.querySelectorAll(".js-open-triage-modal").forEach(btn => {
-    btn.onclick = () => openTriageModal(btn.dataset.id);
+    btn.onclick = (e) => {
+      e.stopPropagation();
+      openTriageModal(btn.dataset.id);
+    };
   });
   document.querySelectorAll(".js-open-done-modal").forEach(btn => {
-    btn.onclick = () => openDoneModal(btn.dataset.id);
+    btn.onclick = (e) => {
+      e.stopPropagation();
+      openDoneModal(btn.dataset.id);
+    };
   });
   document.querySelectorAll(".js-open-confirm-modal").forEach(btn => {
-    btn.onclick = () => openConfirmModal(btn.dataset.id);
+    btn.onclick = (e) => {
+      e.stopPropagation();
+      openConfirmModal(btn.dataset.id);
+    };
   });
   document.querySelectorAll(".js-trigger-submit-modal").forEach(btn => {
-    btn.onclick = () => openSubmitTicketModal();
+    btn.onclick = (e) => {
+      e.stopPropagation();
+      openSubmitTicketModal();
+    };
   });
 }
 
@@ -2043,16 +2460,21 @@ function setupEventHandlers() {
   const submitForm = document.getElementById("submit-ticket-form");
   submitForm?.addEventListener("submit", async (e) => {
     e.preventDefault();
-    const concern = document.getElementById("ticket-concern-type").value;
-    const title = document.getElementById("ticket-title").value.trim();
-    const description = document.getElementById("ticket-description").value.trim();
-    const requesterName = document.getElementById("ticket-requester-select").value;
-    const contactPhone = document.getElementById("ticket-contact-phone").value.trim();
-    const branchId = document.getElementById("ticket-branch-select").value;
-    const dueDate = document.getElementById("ticket-due-date").value;
+    const concern = document.getElementById("ticket-concern-type")?.value;
+    const title = document.getElementById("ticket-title")?.value.trim();
+    const description = document.getElementById("ticket-description")?.value.trim();
 
-    if (!concern || !title || !description || !requesterName || !contactPhone || !branchId || !dueDate) {
-      showToast("Please fill in all required fields.", "danger");
+    // Support both locked input and select for Requester Name, with automatic profile fallback
+    const requesterName = document.getElementById("ticket-requester-name")?.value.trim() ||
+      document.getElementById("ticket-requester-select")?.value.trim() ||
+      state.currentUser?.displayName || "Store Requester";
+    const contactEmail = document.getElementById("ticket-contact-email")?.value.trim() || state.currentUser?.email || "store@successo.ph";
+    const contactPhone = document.getElementById("ticket-contact-phone")?.value.trim() || state.currentUser?.phone || "+639170000000";
+    const branchId = document.getElementById("ticket-branch-select")?.value || state.currentUser?.branchId || state.stores[0]?.id;
+    const dueDate = document.getElementById("ticket-due-date")?.value || todayDateStr;
+
+    if (!concern || !title || !description) {
+      showToast("Please select a concern type, and provide an issue title and description.", "danger");
       return;
     }
 
@@ -2060,7 +2482,7 @@ function setupEventHandlers() {
     const btnSave = document.getElementById("btn-submit-ticket-save");
     if (btnSave) { btnSave.disabled = true; btnSave.textContent = "Uploading to Telegram & Saving..."; }
 
-    // Upload attachment via Telegram Bot API
+    // Upload attachment via Telegram Bot API or local data URL
     let attachmentObj = {
       url: createFlatSvgPlaceholder("#b91c1c", "ISSUE ATTACHMENT", title),
       fileId: `tg_photo_${Date.now()}`,
@@ -2072,7 +2494,7 @@ function setupEventHandlers() {
       attachmentObj = {
         url: tgRes.url,
         fileId: tgRes.fileId,
-        fileName: "camera_capture.jpg"
+        fileName: state.pendingReportPhotoBlob.name || "attachment.jpg"
       };
     }
 
@@ -2084,6 +2506,7 @@ function setupEventHandlers() {
       attachments: [attachmentObj],
       requesterId: state.currentUser.id || "user_req",
       requesterName: requesterName,
+      requesterEmail: contactEmail,
       contactNumber: contactPhone,
       branchId: branchId,
       branchName: branch?.name || "Main Branch",
@@ -2115,16 +2538,6 @@ function setupEventHandlers() {
 
     showToast(`Ticket ${newTicket.id} submitted! Routed to Head Admin for triage.`, "success");
     renderAllViews();
-  });
-
-  // Requester dropdown change auto-fills contact and branch
-  document.getElementById("ticket-requester-select")?.addEventListener("change", (e) => {
-    const selected = PREPOPULATED_EMPLOYEES.find(x => x.name === e.target.value);
-    if (selected) {
-      document.getElementById("ticket-contact-phone").value = selected.phone;
-      const bSelect = document.getElementById("ticket-branch-select");
-      if (bSelect) bSelect.value = selected.branchId;
-    }
   });
 
   // Triage Ticket Form
@@ -2187,7 +2600,7 @@ function setupEventHandlers() {
       return;
     }
 
-    let proofUrl = createFlatSvgPlaceholder("#16a34a", "COMPLETED REPAIR", ticket.title);
+    let proofUrl = ticket.doneProofUrl || createFlatSvgPlaceholder("#16a34a", "COMPLETED REPAIR", ticket.title);
     if (state.pendingFixPhotoBlob && state.pendingFixPhotoDataUrl) {
       const tgRes = await uploadPhotoViaTelegram(state.pendingFixPhotoBlob, state.pendingFixPhotoDataUrl, `Proof: ${ticket.title}`);
       proofUrl = tgRes.url;
@@ -2205,7 +2618,7 @@ function setupEventHandlers() {
     state.pendingFixPhotoDataUrl = "";
     document.getElementById("fix-photo-preview-wrap")?.classList.add("hidden");
 
-    showToast(`Task ${ticket.id} marked done! Awaiting Requester confirmation.`, "success");
+    showToast(`Task ${ticket.id} marked completed! Awaiting Requester confirmation.`, "success");
     renderAllViews();
   });
 
@@ -2242,13 +2655,47 @@ function setupEventHandlers() {
   });
   document.getElementById("search-users-input")?.addEventListener("input", () => renderUsersSection());
 
+  // File Upload Trigger Buttons
+  document.querySelectorAll(".js-trigger-file-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const target = btn.dataset.target || "report";
+      document.getElementById(`${target}-photo-input`)?.click();
+    });
+  });
+
   // Camera Open Buttons
   document.querySelectorAll(".js-open-camera-btn").forEach(btn => {
-    btn.addEventListener("click", () => startDeviceCamera(btn.dataset.target || "report"));
+    btn.addEventListener("click", () => {
+      const target = btn.dataset.target || "report";
+      const canUseWebRtc = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && (window.isSecureContext || location.hostname === 'localhost' || location.hostname === '127.0.0.1'));
+      if (canUseWebRtc) {
+        startDeviceCamera(target);
+      } else {
+        // Direct native camera capture input
+        const camInp = document.getElementById(`${target}-camera-input`);
+        if (camInp) {
+          camInp.click();
+        } else {
+          document.getElementById(`${target}-photo-input`)?.click();
+        }
+      }
+    });
   });
+
   document.querySelectorAll(".js-close-camera").forEach(btn => {
     btn.addEventListener("click", () => stopDeviceCamera());
   });
+
+  document.getElementById("btn-fallback-native-camera")?.addEventListener("click", () => {
+    stopDeviceCamera();
+    const camInp = document.getElementById(`${currentCameraTarget}-camera-input`);
+    if (camInp) {
+      camInp.click();
+    } else {
+      document.getElementById(`${currentCameraTarget}-photo-input`)?.click();
+    }
+  });
+
   document.getElementById("btn-snap-photo")?.addEventListener("click", () => snapPhotoFromCamera());
   document.getElementById("btn-retake-snapshot")?.addEventListener("click", () => {
     document.getElementById("camera-snapshot-preview")?.classList.add("hidden");
@@ -2258,41 +2705,35 @@ function setupEventHandlers() {
   document.getElementById("btn-use-snapshot")?.addEventListener("click", () => {
     stopDeviceCamera();
     showToast("Photo captured and ready for submission!", "success");
+    if (currentCameraTarget === "report") {
+      setSubmitModalStep(2);
+    }
+  });
+
+  // Step 1 & 2 Wizard Navigation
+  document.getElementById("btn-skip-photo")?.addEventListener("click", () => {
+    setSubmitModalStep(2);
+  });
+  document.getElementById("btn-retake-photo")?.addEventListener("click", () => {
+    setSubmitModalStep(1);
   });
   document.getElementById("btn-switch-camera")?.addEventListener("click", () => {
     cameraFacingMode = cameraFacingMode === "environment" ? "user" : "environment";
     startDeviceCamera(currentCameraTarget);
   });
 
-  // File Input Change Handlers
+  // File Input Change Handlers (Both standard file and camera capture)
   document.getElementById("report-photo-input")?.addEventListener("change", (e) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (re) => {
-        state.pendingReportPhotoDataUrl = re.target.result;
-        state.pendingReportPhotoBlob = file;
-        const wrap = document.getElementById("report-photo-preview-wrap");
-        const img = document.getElementById("report-photo-preview");
-        if (wrap && img) { img.src = re.target.result; wrap.classList.remove("hidden"); }
-      };
-      reader.readAsDataURL(file);
-    }
+    handleUploadedFile(e.target.files?.[0], "report");
   });
-
+  document.getElementById("report-camera-input")?.addEventListener("change", (e) => {
+    handleUploadedFile(e.target.files?.[0], "report");
+  });
   document.getElementById("fix-photo-input")?.addEventListener("change", (e) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (re) => {
-        state.pendingFixPhotoDataUrl = re.target.result;
-        state.pendingFixPhotoBlob = file;
-        const wrap = document.getElementById("fix-photo-preview-wrap");
-        const img = document.getElementById("fix-photo-preview");
-        if (wrap && img) { img.src = re.target.result; wrap.classList.remove("hidden"); }
-      };
-      reader.readAsDataURL(file);
-    }
+    handleUploadedFile(e.target.files?.[0], "fix");
+  });
+  document.getElementById("fix-camera-input")?.addEventListener("change", (e) => {
+    handleUploadedFile(e.target.files?.[0], "fix");
   });
 
   // Clear Photos
@@ -2303,10 +2744,14 @@ function setupEventHandlers() {
         state.pendingReportPhotoDataUrl = "";
         state.pendingReportPhotoBlob = null;
         document.getElementById("report-photo-preview-wrap")?.classList.add("hidden");
+        const hint = document.getElementById("report-upload-hint");
+        if (hint) hint.textContent = "Photos or documents are stored securely in Telegram bot and linked in Firebase.";
       } else {
         state.pendingFixPhotoDataUrl = "";
         state.pendingFixPhotoBlob = null;
         document.getElementById("fix-photo-preview-wrap")?.classList.add("hidden");
+        const hint = document.getElementById("fix-upload-hint");
+        if (hint) hint.textContent = "Take a live photo of the repaired equipment or upload proof from files.";
       }
     });
   });
@@ -2323,7 +2768,6 @@ function setupEventHandlers() {
   document.getElementById("btn-open-submit-modal")?.addEventListener("click", () => openSubmitTicketModal());
   document.getElementById("btn-open-create-store")?.addEventListener("click", () => document.getElementById("dialog-create-store")?.showModal());
   document.getElementById("btn-open-create-user")?.addEventListener("click", () => {
-    // Populate branch select
     const bSel = document.getElementById("new-user-branch");
     if (bSel) {
       bSel.innerHTML = state.stores.map(s => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join("");
@@ -2382,6 +2826,7 @@ function setupEventHandlers() {
     const username = document.getElementById("new-user-username").value.trim().toLowerCase();
     const password = document.getElementById("new-user-password").value.trim();
     const phone = document.getElementById("new-user-phone").value.trim();
+    const email = document.getElementById("new-user-email")?.value.trim() || `${username}@successo.ph`;
 
     if (!displayName || !username || !password || !phone) return;
     const branch = state.stores.find(b => b.id === branchId);
@@ -2392,6 +2837,7 @@ function setupEventHandlers() {
       password,
       role,
       displayName,
+      email,
       department: dept || "Operations",
       branchId: branchId,
       branchName: branch?.name || "Main Branch",
@@ -2428,6 +2874,26 @@ function setupEventHandlers() {
       document.getElementById("dialog-password")?.close();
       showToast("Password updated successfully!", "success");
     }
+  });
+
+  // Mobile Bottom Navigation Bar Actions
+  document.querySelectorAll(".js-mobile-nav-tab").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const tabId = btn.dataset.tab;
+      if (tabId) {
+        switchTab(tabId);
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
+    });
+  });
+  document.querySelector(".js-mobile-open-notifs")?.addEventListener("click", () => {
+    document.getElementById("dialog-notifications")?.showModal();
+  });
+  document.querySelector(".js-mobile-open-settings")?.addEventListener("click", () => {
+    document.getElementById("dialog-password")?.showModal();
+  });
+  document.querySelector(".js-mobile-logout")?.addEventListener("click", () => {
+    handleLogout();
   });
 }
 
@@ -2468,14 +2934,28 @@ function renderAllViews() {
   const appView = document.getElementById("app-view");
 
   if (!state.currentUser) {
+    document.body.classList.remove("is-requester");
     authView?.classList.remove("hidden");
     appView?.classList.add("hidden");
     renderLoginAccountSelector();
     return;
   }
 
+  const isReq = state.currentUser.role === "requester";
+  document.body.classList.toggle("is-requester", isReq);
+
   authView?.classList.add("hidden");
   appView?.classList.remove("hidden");
+
+  // Mobile Bottom Navigation Bar Visibility
+  const mobileNav = document.getElementById("requester-mobile-nav");
+  if (mobileNav) {
+    if (isReq) {
+      mobileNav.classList.remove("hidden");
+    } else {
+      mobileNav.classList.add("hidden");
+    }
+  }
 
   // Update Header Identity
   const roleBadge = document.getElementById("header-role-badge");
@@ -2529,31 +3009,75 @@ function formatDateStr(isoStr) {
   }
 }
 
+function getPriorityBadgeClass(priority) {
+  const p = (priority || "medium").toLowerCase();
+  if (p === "urgent") return "badge-danger";
+  if (p === "high") return "badge-warning";
+  if (p === "low") return "badge-neutral";
+  return "badge-primary";
+}
+
 function getPriorityBadge(priority) {
   const p = (priority || "medium").toLowerCase();
-  if (p === "urgent") return `<span class="badge badge-danger">URGENT</span>`;
-  if (p === "high") return `<span class="badge badge-warning">HIGH</span>`;
-  if (p === "low") return `<span class="badge badge-neutral">LOW</span>`;
-  return `<span class="badge badge-primary">MEDIUM</span>`;
+  const cls = getPriorityBadgeClass(p);
+  return `<span class="badge ${cls}">${p.toUpperCase()}</span>`;
+}
+
+function getStatusBadgeClass(status) {
+  const s = (status || "submitted").toLowerCase();
+  if (s === "submitted") return "badge-primary";
+  if (s === "assigned" || s === "in_progress") return "badge-warning";
+  if (s === "pending_confirmation") return "badge-purple";
+  if (s === "resolved") return "badge-success";
+  if (s === "rejected") return "badge-danger";
+  return "badge-neutral";
+}
+
+function getStatusBadgeText(status) {
+  const s = (status || "submitted").toLowerCase();
+  if (s === "submitted") return "NEEDS TRIAGE";
+  if (s === "assigned") return "ASSIGNED";
+  if (s === "in_progress") return "IN PROGRESS";
+  if (s === "pending_confirmation") return "PENDING CONFIRMATION";
+  if (s === "resolved") return "✓ RESOLVED";
+  if (s === "rejected") return "REWORK REQUIRED";
+  return s.toUpperCase();
 }
 
 function getStatusBadge(status) {
   const s = (status || "submitted").toLowerCase();
-  if (s === "submitted") return `<span class="badge badge-primary">NEEDS TRIAGE</span>`;
-  if (s === "assigned") return `<span class="badge badge-warning">ASSIGNED</span>`;
-  if (s === "in_progress") return `<span class="badge badge-warning">IN PROGRESS</span>`;
-  if (s === "pending_confirmation") return `<span class="badge badge-purple">PENDING CONFIRMATION</span>`;
-  if (s === "resolved") return `<span class="badge badge-success">&#10003; RESOLVED</span>`;
-  if (s === "rejected") return `<span class="badge badge-danger">REJECTED</span>`;
-  return `<span class="badge badge-neutral">${s.toUpperCase()}</span>`;
+  const cls = getStatusBadgeClass(s);
+  const text = getStatusBadgeText(s);
+  return `<span class="badge ${cls}">${text}</span>`;
+}
+
+function getConcernIcon(type) {
+  const map = {
+    "Repair & Maintenance": "🔧",
+    "Asset & Tools": "🛠️",
+    "Marketing": "📢",
+    "Compliance": "📋",
+    "HRD": "👥",
+    "Audit": "🔍",
+    "Accounting": "💰",
+    "Warehouse & Logistics": "🚚",
+    "Supply & Inventory": "📦"
+  };
+  return map[type] || "📌";
 }
 
 /* ==========================================================================
    16. ENTRY POINT
    ========================================================================== */
-document.addEventListener("DOMContentLoaded", () => {
+function initApp() {
   loadLocalState();
   setupEventHandlers();
   renderAllViews();
   initFirebaseAndSync();
-});
+}
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", initApp);
+} else {
+  initApp();
+}

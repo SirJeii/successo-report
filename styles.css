@@ -944,25 +944,32 @@ h1, h2, h3, h4, h5, h6 {
 
 /* Mobile Bottom Navigation Bar */
 .bottom-nav {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
+  position: fixed !important;
+  bottom: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  width: 100% !important;
   min-height: var(--bottom-nav-height);
-  padding: 0.25rem 0.5rem calc(0.25rem + env(safe-area-inset-bottom, 0px));
-  background-color: var(--bg-surface);
+  padding: 0.3rem 0.25rem calc(0.3rem + env(safe-area-inset-bottom, 0px));
+  background-color: var(--bg-surface) !important;
   border-block-start: 1px solid var(--border-color);
   display: flex;
   align-items: stretch;
   justify-content: space-around;
-  gap: 0.25rem;
-  z-index: 30;
-  box-shadow: 0 -1px 3px 0 rgba(15, 23, 42, 0.05);
+  gap: 0.15rem;
+  z-index: 9999 !important;
+  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.08);
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+  will-change: transform;
 }
 
 .bottom-nav-btn {
   flex: 1;
   min-width: 0;
+  padding: 0.25rem 0.15rem;
+  font-size: 0.6875rem;
+  letter-spacing: -0.01em;
   background-color: transparent;
   color: var(--text-muted);
   border: 1px solid transparent;
@@ -2181,6 +2188,313 @@ dialog.flat-dialog::backdrop {
   .flat-table th,
   .flat-table td {
     border: 1px solid #d1d5db !important;
+  }
+}
+
+/* ==========================================================================
+   MOBILE-FIRST REQUESTER PORTAL (Beginner-Friendly / Guided View)
+   ========================================================================== */
+.mobile-requester-guide {
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: 1.25rem 1rem;
+  margin-bottom: 1.25rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.guide-welcome {
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  margin-bottom: 1rem;
+}
+
+.guide-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-full);
+  background-color: var(--primary-subtle);
+  color: var(--primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  flex-shrink: 0;
+  border: 1px solid var(--primary-border);
+}
+
+.guide-title {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  margin: 0 0 0.15rem 0;
+  line-height: 1.2;
+}
+
+.guide-subtitle {
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.mobile-hero-cta {
+  font-size: 1.05rem;
+  font-weight: 800;
+  padding: 1rem;
+  border-radius: var(--radius-md);
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.65rem;
+  box-shadow: var(--shadow-sm);
+  background-color: var(--primary);
+  color: #ffffff;
+  border: none;
+  cursor: pointer;
+  width: 100%;
+  transition: transform 0.15s ease, background-color 0.15s ease;
+}
+
+.mobile-hero-cta:active {
+  transform: scale(0.98);
+}
+
+.mobile-steps-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background-color: var(--bg-muted);
+  border-radius: var(--radius-md);
+  padding: 0.75rem 0.5rem;
+  gap: 0.25rem;
+}
+
+.mobile-step-item {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.mobile-step-num {
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-full);
+  background-color: var(--primary);
+  color: #ffffff;
+  font-size: 0.75rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.mobile-step-text {
+  font-size: 0.72rem;
+  line-height: 1.2;
+  color: var(--text-secondary);
+  overflow: hidden;
+}
+
+.mobile-step-text strong {
+  display: block;
+  color: var(--text-primary);
+  font-size: 0.75rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mobile-step-arrow {
+  color: var(--text-muted);
+  font-weight: 800;
+  font-size: 0.875rem;
+  padding: 0 0.15rem;
+}
+
+/* Mobile Ticket Card (Replaces Cluttered Table on Mobile) */
+.mobile-ticket-card {
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: 1rem;
+  margin-bottom: 0.875rem;
+  box-shadow: var(--shadow-xs);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  cursor: pointer;
+  transition: border-color 0.15s ease, transform 0.15s ease;
+  position: relative;
+}
+
+.mobile-ticket-card:active {
+  background-color: var(--bg-subtle);
+  transform: scale(0.99);
+}
+
+.mobile-ticket-card.card-pending-confirmation {
+  border: 2px solid var(--purple);
+  background-color: #faf5ff;
+}
+
+.mobile-ticket-card.card-rejected {
+  border: 2px solid var(--danger);
+  background-color: #fff5f5;
+}
+
+.mobile-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.mobile-card-title {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  margin: 0;
+  line-height: 1.35;
+}
+
+.mobile-card-details-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.mobile-card-thumb {
+  width: 68px;
+  height: 68px;
+  border-radius: var(--radius-md);
+  object-fit: cover;
+  border: 1px solid var(--border-color);
+  flex-shrink: 0;
+  background-color: #000000;
+}
+
+.mobile-card-info {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.mobile-card-status-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--radius-md);
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+
+.status-banner-submitted {
+  background-color: var(--primary-subtle);
+  color: var(--primary-text);
+  border: 1px solid var(--primary-border);
+}
+
+.status-banner-assigned {
+  background-color: var(--warning-subtle);
+  color: var(--warning-text);
+  border: 1px solid var(--warning-border);
+}
+
+.status-banner-pending {
+  background-color: #f3e8ff;
+  color: #6b21a8;
+  border: 1px solid #d8b4fe;
+}
+
+.status-banner-resolved {
+  background-color: var(--success-subtle);
+  color: var(--success-text);
+  border: 1px solid var(--success-border);
+}
+
+.status-banner-rejected {
+  background-color: var(--danger-subtle);
+  color: var(--danger-text);
+  border: 1px solid var(--danger-border);
+}
+
+.mobile-card-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+/* Autofill Employee Pill in Submission Dialog */
+.employee-autofill-pill {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  background-color: var(--bg-muted);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 0.65rem 0.875rem;
+  font-size: 0.8125rem;
+  margin-bottom: 0.875rem;
+}
+
+@media (max-width: 768px) {
+  .app-body {
+    padding-bottom: calc(var(--bottom-nav-height) + 1.5rem);
+  }
+
+  .flat-dialog {
+    width: 96% !important;
+    max-width: 96% !important;
+    margin: auto !important;
+    max-height: 90vh !important;
+  }
+
+  .dialog-inner {
+    padding: 1.15rem 1rem !important;
+  }
+
+  .desktop-only-table,
+  .desktop-only {
+    display: none !important;
+  }
+
+  /* Eliminate ALL button redundancy in top-header for mobile store requesters */
+  body.is-requester .top-header .header-right,
+  body.is-requester .top-header #btn-open-submit-modal,
+  body.is-requester .top-header #btn-open-notifications,
+  body.is-requester .top-header #btn-open-pw-modal,
+  body.is-requester .top-header #btn-logout,
+  .mobile-hero-cta {
+    display: none !important;
+  }
+
+  .mobile-only-cards,
+  .mobile-only {
+    display: flex !important;
+    flex-direction: column !important;
+  }
+}
+
+@media (min-width: 769px) {
+  .desktop-only-table,
+  .desktop-only {
+    display: block !important;
+  }
+
+  .mobile-only-cards,
+  .mobile-only {
+    display: none !important;
   }
 }
 
